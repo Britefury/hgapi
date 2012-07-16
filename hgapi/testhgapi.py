@@ -271,6 +271,15 @@ class TestHgAPI(unittest.TestCase):
         branch_names = self.repo.get_branch_names()
         self.assertEquals(len(branch_names), 2)
 
+    def test_200_Clone(self):
+        repo = hgapi.Repo('.testclone')
+        repo.clone('https://bitbucket.org/haard/hgapi')
+        self.assertTrue(os.path.exists('.testclone'))
+        self.assertTrue(os.path.exists(os.path.join('.testclone', 'hgapi')))
+        shutil.rmtree('.testclone')
+        self.assertFalse(os.path.exists('.testclone'))
+        
+
 def test_doc():
     #Prepare for doctest
     os.mkdir("./test_hgapi")

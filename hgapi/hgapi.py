@@ -6,7 +6,7 @@ try:
 except: #python 3
     from urllib.parse import unquote
 import re
-import os.path
+import os
 try:
     import json #for reading logs
 except:
@@ -282,4 +282,9 @@ class Repo(object):
             return value.split(",")
         else:
             return value.split()
+
+    def clone(self, remoteUri):
+        os.makedirs(self.path)
+        self.hg_command('clone', remoteUri)
+       
 
