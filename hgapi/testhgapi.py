@@ -271,13 +271,35 @@ class TestHgAPI(unittest.TestCase):
         branch_names = self.repo.get_branch_names()
         self.assertEquals(len(branch_names), 2)
 
-    def test_200_Clone(self):
-        repo = hgapi.Repo('.testclone')
+    def test_200_clone(self):
+        dirName = '.testclone'
+        repo = hgapi.Repo(dirName)
         repo.clone('https://bitbucket.org/haard/hgapi')
-        self.assertTrue(os.path.exists('.testclone'))
-        self.assertTrue(os.path.exists(os.path.join('.testclone', 'hgapi')))
-        shutil.rmtree('.testclone')
-        self.assertFalse(os.path.exists('.testclone'))
+        self.assertTrue(os.path.exists(dirName))
+        self.assertTrue(os.path.exists(os.path.join(dirName, 'hgapi')))
+        shutil.rmtree(dirName)
+        self.assertFalse(os.path.exists(dirName))
+
+    def test_201_clone_dir_exists_raises(self):
+        dirName = '.testclone2'
+        if os.path.exists(dirName): shutil.rmtree(dirName)
+        os.makedirs(dirName)
+        repo = hgapi.Repo(dirName)
+        self.assertRaises(OSError, repo.clone, 'https://bitbucket.org/haard/hgapi')
+        shutil.rmtree(dirName)
+        self.assertFalse(os.path.exists(dirName))
+
+    def test_202_clone_dir_exists_OK(self):
+        dirName = '.testclone2'
+        if os.path.exists(dirName): shutil.rmtree(dirName)
+        os.makedirs(dirName)
+        repo = hgapi.Repo(dirName)
+        repo.clone('https://bitbucket.org/haard/hgapi', okIfLocalDirExists=True)
+        self.assertTrue(os.path.exists(dirName))
+        shutil.rmtree(dirName)
+        self.assertFalse(os.path.exists(dirName))
+
+        
         
 
 def test_doc():

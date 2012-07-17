@@ -283,8 +283,14 @@ class Repo(object):
         else:
             return value.split()
 
-    def clone(self, remoteUri):
-        os.makedirs(self.path)
+    def clone(self, remoteUri, okIfLocalDirExists=False):
+        try:
+            os.makedirs(self.path)
+        except OSError, e:
+            if 'File exists' in str(e) and okIfLocalDirExists: 
+                pass
+            else:
+                raise e
         self.hg_command('clone', remoteUri)
        
 
