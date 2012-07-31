@@ -76,6 +76,16 @@ class Repo(object):
         """Initialize a new repo"""
         self.hg_command("init")
 
+    def hg_clone(self, remoteUri, ok_if_local_dir_exists=False):
+        try:
+            os.makedirs(self.path)
+        except OSError, e:
+            if 'File exists' in str(e) and ok_if_local_dir_exists:
+                pass
+            else:
+                raise e
+        self.hg_command('clone', remoteUri)
+
     def hg_id(self):
         """Get the output of the hg id command (truncated node)"""
         res = self.hg_command("id", "-i")
@@ -134,6 +144,12 @@ class Repo(object):
         # was passed in files kwarg
         args = [arg for arg in args if arg]
         self.hg_command("commit", "-m", message, *args)
+
+    def hg_pull(self):
+        return self.hg_command('pull')
+
+    def hg_push(self):
+        return self.hg_command('push')
 
     def hg_log(self, identifier=None, limit=None, template=None, **kwargs):
         """Get repositiory log."""
@@ -283,14 +299,4 @@ class Repo(object):
         else:
             return value.split()
 
-    def clone(self, remoteUri, okIfLocalDirExists=False):
-        try:
-            os.makedirs(self.path)
-        except OSError, e:
-            if 'File exists' in str(e) and okIfLocalDirExists: 
-                pass
-            else:
-                raise e
-        self.hg_command('clone', remoteUri)
-       
 
