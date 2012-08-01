@@ -16,7 +16,7 @@ except:
 class HGError (Exception):
     pass
 
-class HGNotInstalledError (HGError):
+class HGCannotLaunchError (HGError):
     pass
 
 
@@ -52,6 +52,8 @@ class Repo(object):
     """A representation of a Mercurial repository"""
     def __init__(self, path, user=None):
         """Create a Repo object from the repository at path"""
+        # Call hg_version() to check that it is installed and that it works
+        hg_version()
         self.path = path
         self.cfg = False
         self.user = user
@@ -296,6 +298,8 @@ class Repo(object):
     @staticmethod
     def hg_init(path, user=None):
         """Initialize a new repo"""
+        # Call hg_version() to check that it is installed and that it works
+        hg_version()
         repo = Repo(path, user)
         repo.hg_command("init")
         return repo
@@ -303,6 +307,8 @@ class Repo(object):
     @staticmethod
     def hg_clone(path, remote_uri, ok_if_local_dir_exists=False, user=None):
         """Clone an existing repo"""
+        # Call hg_version() to check that it is installed and that it works
+        hg_version()
         if os.path.exists(path):
             if os.path.isdir(path):
                 if not ok_if_local_dir_exists:
@@ -319,10 +325,13 @@ class Repo(object):
 
 def hg_version():
     """Return version number of mercurial"""
-    proc = Popen(["hg", "version"], stdout=PIPE, stderr=PIPE)
+    try:
+        proc = Popen(["hg", "version"], stdout=PIPE, stderr=PIPE)
+    except:
+        raise HGCannotLaunchError, 'Cannot launch hg executable'
     out, err = [x.decode("utf-8") for x in  proc.communicate()]
     if proc.returncode:
-        raise HGNotInstalledError
+        raise HGCannotLaunchError, 'Cannot get hg version'
     match = re.search('\s([\w\.\-]+?)\)$', out.split("\n")[0])
     return match.group(1)
 
