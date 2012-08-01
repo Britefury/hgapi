@@ -20,6 +20,20 @@ class HGCannotLaunchError (HGError):
     pass
 
 
+def _hg_cmd(*args):
+    """Run a hg command in path and return the result.
+    Throws on error."""
+    cmd = ["hg", "--encoding", "UTF-8"] + list(args)
+    proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
+
+    out, err = [x.decode("utf-8") for x in  proc.communicate()]
+
+    if proc.returncode:
+        raise HGError("Error running %s:\n\tErr: %s\n\tOut: %s\n\tExit: %s"
+        % (' '.join(cmd),err,out,proc.returncode))
+    return out
+
+
 class Revision(object):
     """A representation of a revision.
     Available fields are::
@@ -57,6 +71,8 @@ class Repo(object):
         self.path = path
         self.cfg = False
         self.user = user
+        # Call hg_status to check that the repo is valid
+        self.hg_status()
  
     def __getitem__(self, rev=slice(0, 'tip')):
         """Get a Revision object for the revision identifed by rev
@@ -70,15 +86,15 @@ class Repo(object):
 
     def hg_command(self, *args):
         """Run a hg command in path and return the result.
-        Throws on error."""    
-        proc = Popen(["hg", "--cwd", self.path, "--encoding", "UTF-8"] + list(args), stdout=PIPE, stderr=PIPE)
+        Throws on error."""
+        cmd = ["hg", "--cwd", self.path, "--encoding", "UTF-8"] + list(args)
+        proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
 
         out, err = [x.decode("utf-8") for x in  proc.communicate()]
 
         if proc.returncode:
-            cmd = (" ".join(["hg", "--cwd", self.path] + list(args)))
             raise HGError("Error running %s:\n\tErr: %s\n\tOut: %s\n\tExit: %s"
-                            % (cmd,err,out,proc.returncode))
+            % (' '.join(cmd),err,out,proc.returncode))
         return out
 
     def hg_id(self):
@@ -300,8 +316,8 @@ class Repo(object):
         """Initialize a new repo"""
         # Call hg_version() to check that it is installed and that it works
         hg_version()
+        _hg_cmd('init', path)
         repo = Repo(path, user)
-        repo.hg_command("init")
         return repo
 
     @staticmethod
@@ -317,8 +333,8 @@ class Repo(object):
                 raise HGError, 'Cannot clone into \'{0}\'; it is not a directory'.format(path)
         else:
             os.makedirs(path)
+        _hg_cmd('clone', remote_uri, path)
         repo = Repo(path, user)
-        repo.hg_command('clone', remote_uri)
         return repo
 
 
@@ -334,4 +350,18 @@ def hg_version():
         raise HGCannotLaunchError, 'Cannot get hg version'
     match = re.search('\s([\w\.\-]+?)\)$', out.split("\n")[0])
     return match.group(1)
+
+
+
+
+
+def hg_check():
+    try:
+        hg_version()
+    except HGCannotLaunchError:
+        return False
+    else:
+        return True
+
+
 

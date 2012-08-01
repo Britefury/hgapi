@@ -272,7 +272,7 @@ class TestHgAPI(unittest.TestCase):
         self.assertEquals(len(branch_names), 2)
 
     def test_200_clone(self):
-        dirName = '.testclone'
+        dirName = './testclone'
         if os.path.exists(dirName): shutil.rmtree(dirName)
         repo = hgapi.Repo.hg_clone(dirName, 'https://bitbucket.org/haard/hgapi', user='testuser')
         self.assertTrue(os.path.exists(dirName))
@@ -281,7 +281,7 @@ class TestHgAPI(unittest.TestCase):
         self.assertFalse(os.path.exists(dirName))
 
     def test_201_clone_dir_exists_raises(self):
-        dirName = '.testclone2'
+        dirName = './testclone2'
         if os.path.exists(dirName): shutil.rmtree(dirName)
         os.makedirs(dirName)
         self.assertRaises(hgapi.HGError, lambda: hgapi.Repo.hg_clone(dirName, 'https://bitbucket.org/haard/hgapi', user=self._user))
@@ -289,7 +289,7 @@ class TestHgAPI(unittest.TestCase):
         self.assertFalse(os.path.exists(dirName))
 
     def test_202_clone_dir_exists_OK(self):
-        dirName = '.testclone2'
+        dirName = './testclone2'
         if os.path.exists(dirName): shutil.rmtree(dirName)
         os.makedirs(dirName)
         repo = hgapi.Repo.hg_clone(dirName, 'https://bitbucket.org/haard/hgapi', user=self._user, ok_if_local_dir_exists=True)
