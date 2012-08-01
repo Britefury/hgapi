@@ -35,8 +35,7 @@ supports slicing and indexing notation.
 
 Example usage::
     >>> import hgapi
-    >>> repo = hgapi.Repo("test_hgapi") #existing folder
-    >>> repo.hg_init()
+    >>> repo = hgapi.Repo.hg_init("test_hgapi") #existing folder
     >>> repo.hg_add("file.txt") #already created but not added file
     >>> repo.hg_commit("Adding file.txt", user="me")
     >>> str(repo['tip'].desc)

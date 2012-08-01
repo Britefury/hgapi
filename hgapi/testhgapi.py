@@ -8,8 +8,8 @@ class TestHgAPI(unittest.TestCase):
     Uses and wipes subfolder named 'test'
     Tests are dependant on each other; named test_<number>_name for sorting
     """
-    repo = hgapi.Repo("./test", user="testuser")
-    
+    _user = 'testuser'
+
     @classmethod
     def setUpClass(cls):
         #Patch Python 3
@@ -26,7 +26,7 @@ class TestHgAPI(unittest.TestCase):
         shutil.rmtree("test")
 
     def test_000_Init(self):
-        self.repo.hg_init()
+        TestHgAPI.repo = hgapi.Repo.hg_init("./test", user=self._user)
         self.assertTrue(os.path.exists("test/.hg"))
 
     def test_010_Identity(self):
@@ -273,8 +273,8 @@ class TestHgAPI(unittest.TestCase):
 
     def test_200_clone(self):
         dirName = '.testclone'
-        repo = hgapi.Repo(dirName)
-        repo.clone('https://bitbucket.org/haard/hgapi')
+        if os.path.exists(dirName): shutil.rmtree(dirName)
+        repo = hgapi.Repo.hg_clone(dirName, 'https://bitbucket.org/haard/hgapi', user='testuser')
         self.assertTrue(os.path.exists(dirName))
         self.assertTrue(os.path.exists(os.path.join(dirName, 'hgapi')))
         shutil.rmtree(dirName)
@@ -284,8 +284,7 @@ class TestHgAPI(unittest.TestCase):
         dirName = '.testclone2'
         if os.path.exists(dirName): shutil.rmtree(dirName)
         os.makedirs(dirName)
-        repo = hgapi.Repo(dirName)
-        self.assertRaises(OSError, repo.clone, 'https://bitbucket.org/haard/hgapi')
+        self.assertRaises(hgapi.HGError, lambda: hgapi.Repo.hg_clone(dirName, 'https://bitbucket.org/haard/hgapi', user=self._user))
         shutil.rmtree(dirName)
         self.assertFalse(os.path.exists(dirName))
 
@@ -293,8 +292,7 @@ class TestHgAPI(unittest.TestCase):
         dirName = '.testclone2'
         if os.path.exists(dirName): shutil.rmtree(dirName)
         os.makedirs(dirName)
-        repo = hgapi.Repo(dirName)
-        repo.clone('https://bitbucket.org/haard/hgapi', okIfLocalDirExists=True)
+        repo = hgapi.Repo.hg_clone(dirName, 'https://bitbucket.org/haard/hgapi', user=self._user, ok_if_local_dir_exists=True)
         self.assertTrue(os.path.exists(dirName))
         shutil.rmtree(dirName)
         self.assertFalse(os.path.exists(dirName))

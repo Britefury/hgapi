@@ -13,6 +13,13 @@ except:
     import simplejson as json
 
 
+class HGError (Exception):
+    pass
+
+class HGNotInstalledError (HGError):
+    pass
+
+
 class Revision(object):
     """A representation of a revision.
     Available fields are::
@@ -68,23 +75,9 @@ class Repo(object):
 
         if proc.returncode:
             cmd = (" ".join(["hg", "--cwd", self.path] + list(args)))
-            raise Exception("Error running %s:\n\tErr: %s\n\tOut: %s\n\tExit: %s" 
+            raise HGError("Error running %s:\n\tErr: %s\n\tOut: %s\n\tExit: %s"
                             % (cmd,err,out,proc.returncode))
         return out
-
-    def hg_init(self):
-        """Initialize a new repo"""
-        self.hg_command("init")
-
-    def hg_clone(self, remoteUri, ok_if_local_dir_exists=False):
-        try:
-            os.makedirs(self.path)
-        except OSError, e:
-            if 'File exists' in str(e) and ok_if_local_dir_exists:
-                pass
-            else:
-                raise e
-        self.hg_command('clone', remoteUri)
 
     def hg_id(self):
         """Get the output of the hg id command (truncated node)"""
@@ -299,4 +292,37 @@ class Repo(object):
         else:
             return value.split()
 
+
+    @staticmethod
+    def hg_init(path, user=None):
+        """Initialize a new repo"""
+        repo = Repo(path, user)
+        repo.hg_command("init")
+        return repo
+
+    @staticmethod
+    def hg_clone(path, remote_uri, ok_if_local_dir_exists=False, user=None):
+        """Clone an existing repo"""
+        if os.path.exists(path):
+            if os.path.isdir(path):
+                if not ok_if_local_dir_exists:
+                    raise HGError, 'Local directory \'{0}\' already exists'.format(path)
+            else:
+                raise HGError, 'Cannot clone into \'{0}\'; it is not a directory'.format(path)
+        else:
+            os.makedirs(path)
+        repo = Repo(path, user)
+        repo.hg_command('clone', remote_uri)
+        return repo
+
+
+
+def hg_version():
+    """Return version number of mercurial"""
+    proc = Popen(["hg", "version"], stdout=PIPE, stderr=PIPE)
+    out, err = [x.decode("utf-8") for x in  proc.communicate()]
+    if proc.returncode:
+        raise HGNotInstalledError
+    match = re.search('\s([\w\.\-]+?)\)$', out.split("\n")[0])
+    return match.group(1)
 
