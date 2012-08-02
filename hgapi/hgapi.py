@@ -64,13 +64,14 @@ class Revision(object):
 
 class Repo(object):
     """A representation of a Mercurial repository"""
-    def __init__(self, path, user=None):
+    def __init__(self, path, user=None, on_filesystem_modified=None):
         """Create a Repo object from the repository at path"""
         # Call hg_version() to check that it is installed and that it works
         hg_version()
         self.path = path
         self.cfg = False
         self.user = user
+        self.__on_filesystem_modified = on_filesystem_modified
         # Call hg_status to check that the repo is valid
         self.hg_status()
  
@@ -121,6 +122,7 @@ class Repo(object):
         cmd = ["update", str(reference)]
         if clean: cmd.append("--clean")
         self.hg_command(*cmd)
+        self.__on_filesystem_modified()
 
     def hg_heads(self):
         """Gets a list with the node id:s of all open heads"""
@@ -130,7 +132,8 @@ class Repo(object):
     def hg_merge(self, reference):
         """Merge reference to current"""
         self.hg_command("merge", reference)
-        
+        self.__on_filesystem_modified()
+
     def hg_revert(self, all=False, *files):
         """Revert repository"""
         
@@ -139,6 +142,7 @@ class Repo(object):
         else:
             cmd = ["revert"] + list(files)
         self.hg_command(*cmd)
+        self.__on_filesystem_modified()
 
     def hg_node(self):
         """Get the full node id of the current revision"""
@@ -312,16 +316,16 @@ class Repo(object):
 
 
     @staticmethod
-    def hg_init(path, user=None):
+    def hg_init(path, user=None, on_filesystem_modified=None):
         """Initialize a new repo"""
         # Call hg_version() to check that it is installed and that it works
         hg_version()
         _hg_cmd('init', path)
-        repo = Repo(path, user)
+        repo = Repo(path, user, on_filesystem_modified)
         return repo
 
     @staticmethod
-    def hg_clone(path, remote_uri, ok_if_local_dir_exists=False, user=None):
+    def hg_clone(path, remote_uri, ok_if_local_dir_exists=False, user=None, on_filesystem_modified=None):
         """Clone an existing repo"""
         # Call hg_version() to check that it is installed and that it works
         hg_version()
@@ -334,7 +338,7 @@ class Repo(object):
         else:
             os.makedirs(path)
         _hg_cmd('clone', remote_uri, path)
-        repo = Repo(path, user)
+        repo = Repo(path, user, on_filesystem_modified)
         return repo
 
 
