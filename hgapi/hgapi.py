@@ -62,6 +62,74 @@ class Revision(object):
         """Returns true if self.node == other.node"""
         return self.node == other.node
 
+
+class Status (object):
+    """A representation of a repo status.
+    Available fields are:
+    """
+    def __init__(self, added=[], modified=[], removed=[], untracked=[], missing=[]):
+        self.added = added
+        self.modified = modified
+        self.removed = removed
+        self.untracked = untracked
+        self.missing = missing
+
+
+    @property
+    def has_any_changes(self):
+        return len(self.added) > 0  or  len(self.modified) > 0  or  len(self.removed) > 0  or\
+               len(self.untracked) > 0  or  len(self.missing)  >  0
+
+
+    @property
+    def has_uncommitted_changes(self):
+        return len(self.added) > 0  or  len(self.modified) > 0  or  len(self.removed) > 0
+
+
+    @property
+    def has_uncommitted_changes_or_missing_files(self):
+        return len(self.added) > 0  or  len(self.modified) > 0  or  len(self.removed) > 0  or  len(self.missing)  >  0
+
+
+    @property
+    def has_added_files(self):
+        return len(self.added) > 0
+
+    @property
+    def has_modified_files(self):
+        return len(self.modified) > 0
+
+    @property
+    def has_removed_files(self):
+        return len(self.removed) > 0
+
+    @property
+    def has_untracked_files(self):
+        return len(self.untracked) > 0
+
+    @property
+    def has_missing_files(self):
+        return len(self.missing) > 0
+
+
+    def __eq__(self, other):
+        if isinstance(other, Status):
+            return self.added == other.added  and  self.modified == other.modified  and  \
+                   self.untracked == other.untracked  and  self.missing == other.missing  and  \
+                   self.removed == other.removed
+        else:
+            return NotImplemented
+
+
+    def __ne__(self, other):
+        if isinstance(other, Status):
+            return self.added != other.added  or  self.modified != other.modified  or\
+                   self.untracked != other.untracked  or  self.missing != other.missing  or\
+                   self.removed != other.removed
+        else:
+            return NotImplemented
+
+
 class Repo(object):
     """A representation of a Mercurial repository"""
     def __init__(self, path, user=None, on_filesystem_modified=None):
@@ -122,7 +190,8 @@ class Repo(object):
         cmd = ["update", str(reference)]
         if clean: cmd.append("--clean")
         self.hg_command(*cmd)
-        self.__on_filesystem_modified()
+        if self.__on_filesystem_modified is not None:
+            self.__on_filesystem_modified()
 
     def hg_heads(self):
         """Gets a list with the node id:s of all open heads"""
@@ -132,7 +201,8 @@ class Repo(object):
     def hg_merge(self, reference):
         """Merge reference to current"""
         self.hg_command("merge", reference)
-        self.__on_filesystem_modified()
+        if self.__on_filesystem_modified is not None:
+            self.__on_filesystem_modified()
 
     def hg_revert(self, all=False, *files):
         """Revert repository"""
@@ -142,7 +212,8 @@ class Repo(object):
         else:
             cmd = ["revert"] + list(files)
         self.hg_command(*cmd)
-        self.__on_filesystem_modified()
+        if self.__on_filesystem_modified is not None:
+            self.__on_filesystem_modified()
 
     def hg_node(self):
         """Get the full node id of the current revision"""
@@ -216,7 +287,7 @@ class Repo(object):
                 values.append(name)
         return values
 
-    def hg_status(self, empty=False):
+    def hg_status(self):
         """Get repository status.
         Returns a dict containing a *change char* -> *file list* mapping, where 
         change char is in::
@@ -233,18 +304,16 @@ class Repo(object):
         cmds = ['status']
         out = self.hg_command(*cmds).strip()
         #default empty set
-        if empty:
-            changes = {}
-        else:
-            changes = {'A': [], 'M': [], '!': [], '?': [], 'R': []}
-        if not out: return changes
+        status = Status()
+        if not out: return status
         lines = out.split("\n")
         status_split = re.compile("^(.) (.*)$")
 
         for change, path in [status_split.match(x).groups() for x in lines]:
-            changes.setdefault(change, []).append(path)
-        return changes
+            getattr(status, self._status_codes[change]).append(path)
+        return status
         
+    _status_codes = {'A': 'added', 'M': 'modified', 'R': 'removed', '!': 'missing', '?': 'untracked'}
     rev_log_tpl = '\{"node":"{node|short}","rev":"{rev}","author":"{author|urlescape}","branch":"{branches}","parents":"{parents}","date":"{date|isodate}","tags":"{tags}","desc":"{desc|urlescape}\"}\n'
 
     def revision(self, identifier):

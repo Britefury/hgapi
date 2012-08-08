@@ -141,33 +141,26 @@ class TestHgAPI(unittest.TestCase):
         with open("test/file.txt", "a") as out:
             out.write("stuff stuff stuff")
         status = self.repo.hg_status()
-        self.assertEquals(status, 
-                          {'A': [], 'M': ['file.txt'], '!': [], 
-                           '?': [], 'R': []})
-        
+        self.assertEquals(status, hgapi.Status(modified=['file.txt']))
+
     def test_100_CleanStatus(self):
         #commit file created in 090
         self.repo.hg_commit("Comitting changes", user="test")
         #Assert status is empty
-        self.assertEquals(self.repo.hg_status(), 
-                          {'A': [], 'M': [], '!': [], '?': [], 'R': []})
+        self.assertEquals(self.repo.hg_status(), hgapi.Status())
 
     def test_110_UntrackedStatus(self):
         #Create a new file
         with open("test/file2.txt", "w") as out:
             out.write("stuff stuff stuff")
         status = self.repo.hg_status()
-        self.assertEquals(status, 
-                          {'A': [], 'M': [], '!': [], 
-                           '?': ['file2.txt'], 'R': []})
+        self.assertEquals(status, hgapi.Status(untracked=['file2.txt']))
 
     def test_120_AddedStatus(self):
         #Add file created in 110
         self.repo.hg_add("file2.txt")
         status = self.repo.hg_status()
-        self.assertEquals(status, 
-                          {'A': ['file2.txt'], 'M': [], '!': [], 
-                           '?': [], 'R': []})
+        self.assertEquals(status, hgapi.Status(added=['file2.txt']))
 
     def test_130_MissingStatus(self):
         #Commit file created in 120
@@ -175,22 +168,18 @@ class TestHgAPI(unittest.TestCase):
         import os
         os.unlink("test/file2.txt")
         status = self.repo.hg_status()
-        self.assertEquals(status, 
-                          {'A': [], 'M': [], '!': ['file2.txt'], 
-                           '?': [], 'R': []})
+        self.assertEquals(status, hgapi.Status(missing=['file2.txt']))
 
     def test_140_RemovedStatus(self):
         #Remove file from repo
         self.repo.hg_remove("file2.txt")
         status = self.repo.hg_status()
-        self.assertEquals(status, 
-                          {'A': [], 'M': [], '!': [], 
-                           '?': [], 'R': ['file2.txt']})
+        self.assertEquals(status, hgapi.Status(removed=['file2.txt']))
 
     def test_140_EmptyStatus(self):
         self.repo.hg_revert(all=True)
-        status = self.repo.hg_status(empty=True)
-        self.assertEquals(status, {})
+        status = self.repo.hg_status()
+        self.assertEquals(status, hgapi.Status())
 
     def test_150_ForkAndMerge(self):
         #Store this version
@@ -223,7 +212,7 @@ class TestHgAPI(unittest.TestCase):
         with open("test/file3.txt", "w") as out:
             out.write("this is even more stuff")
         self.repo.hg_commit("only committing file2.txt", user="test", files=["file2.txt"])
-        self.assertTrue("file3.txt" in self.repo.hg_status()["M"])
+        self.assertTrue("file3.txt" in self.repo.hg_status().modified)
         
     def test_170_Indexing(self):
         with open("test/file2.txt", "a+") as out:
