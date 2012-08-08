@@ -13,6 +13,14 @@ except:
     import simplejson as json
 
 
+MERGETOOL_INTERNAL_DUMP = 'internal:dump'
+MERGETOOL_INTERNAL_FAIL = 'internal:fail'
+MERGETOOL_INTERNAL_LOCAL = 'internal:local'
+MERGETOOL_INTERNAL_MERGE = 'internal:merge'
+MERGETOOL_INTERNAL_OTHER = 'internal:other'
+MERGETOOL_INTERNAL_PROMPT = 'internal:prompt'
+
+
 class HGError (Exception):
     pass
 
