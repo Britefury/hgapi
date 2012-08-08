@@ -234,8 +234,11 @@ class Repo(object):
     def hg_pull(self):
         return self.hg_command('pull')
 
-    def hg_push(self):
-        return self.hg_command('push')
+    def hg_push(self, force=False):
+        cmd = ['push']
+        if force:
+            cmd.append('--force')
+        return self.hg_command(*cmd)
 
     def hg_log(self, identifier=None, limit=None, template=None, **kwargs):
         """Get repositiory log."""
