@@ -67,12 +67,12 @@ class Status (object):
     """A representation of a repo status.
     Available fields are:
     """
-    def __init__(self, added=[], modified=[], removed=[], untracked=[], missing=[]):
-        self.added = added
-        self.modified = modified
-        self.removed = removed
-        self.untracked = untracked
-        self.missing = missing
+    def __init__(self, added=None, modified=None, removed=None, untracked=None, missing=None):
+        self.added = set(added)   if added is not None   else set()
+        self.modified = set(modified)   if modified is not None   else set()
+        self.removed = set(removed)   if removed is not None   else set()
+        self.untracked = set(untracked)   if untracked is not None   else set()
+        self.missing = set(missing)   if missing is not None   else set()
 
 
     @property
@@ -310,7 +310,7 @@ class Repo(object):
         status_split = re.compile("^(.) (.*)$")
 
         for change, path in [status_split.match(x).groups() for x in lines]:
-            getattr(status, self._status_codes[change]).append(path)
+            getattr(status, self._status_codes[change]).add(path)
         return status
         
     _status_codes = {'A': 'added', 'M': 'modified', 'R': 'removed', '!': 'missing', '?': 'untracked'}
