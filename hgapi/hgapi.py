@@ -158,7 +158,7 @@ class Repo(object):
            or it can be left blank to indicate the entire history
         """
         if isinstance(rev, slice):
-            return self.revisions(rev)
+            return self.revisions(":".join([str(x)for x in (rev.start, rev.stop)]))
         return self.revision(rev)
 
     def hg_command(self, *args):
@@ -195,7 +195,9 @@ class Repo(object):
 
     def hg_update(self, reference, clean=False):
         """Update to the revision indetified by reference"""
-        cmd = ["update", str(reference)]
+        cmd = ["update"]
+        if reference is not None:
+            cmd.append(str(reference))
         if clean: cmd.append("--clean")
         self.hg_command(*cmd)
         if self.__on_filesystem_modified is not None:
@@ -333,17 +335,14 @@ class Repo(object):
 
     def revision(self, identifier):
         """Get the identified revision as a Revision object"""
-
-        out = self.hg_log(identifier=str(identifier), 
-                                     template=self.rev_log_tpl)
+        out = self.hg_log(identifier=str(identifier), template=self.rev_log_tpl)
                 
         return Revision(out)   
 
-    def revisions(self, slice_):
-        """Retruns a list of Revision objects for the given slice"""
-        out = self.hg_log(identifier=":".join([str(x)for x in (slice_.start, slice_.stop)]), 
-                                             template=self.rev_log_tpl)
-                        
+    def revisions(self, identifier):
+        """Returns a list of Revision objects for the given identifier"""
+        out = self.hg_log(identifier=str(identifier), template=self.rev_log_tpl)
+
         revs = []
         for entry in out.split('\n')[:-1]:
             revs.append(Revision(entry))
