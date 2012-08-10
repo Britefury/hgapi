@@ -286,8 +286,16 @@ class TestHgAPI(unittest.TestCase):
         shutil.rmtree(dirName)
         self.assertFalse(os.path.exists(dirName))
 
-        
-        
+    def test_210_repo_config(self):
+        config = self.repo.read_repo_config()
+        self.assertFalse(config.has_option('Extensions', 'rebase'))
+        self.repo.enable_extension('rebase')
+        config = self.repo.read_repo_config()
+        self.assertTrue(config.has_option('Extensions', 'rebase'))
+
+
+
+
 
 def test_doc():
     #Prepare for doctest

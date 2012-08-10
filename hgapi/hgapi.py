@@ -5,6 +5,11 @@ try:
     from urllib import unquote
 except: #python 3
     from urllib.parse import unquote
+
+try:
+    from ConfigParser import ConfigParser
+except: #python 3
+    from configparser import ConfigParser
 import re
 import os
 try:
@@ -173,6 +178,23 @@ class Repo(object):
             raise HGError("Error running %s:\n\tErr: %s\n\tOut: %s\n\tExit: %s"
             % (' '.join(cmd),err,out,proc.returncode))
         return out
+
+    def read_repo_config(self):
+        config = ConfigParser()
+        config.read(os.path.join(self.path, '.hg', 'hgrc'))
+        return config
+
+    def write_repo_config(self, config):
+        with open(os.path.join(self.path, '.hg', 'hgrc'), 'w') as f:
+            config.write(f)
+
+    def enable_extension(self, extension_name):
+        config = self.read_repo_config()
+        if not config.has_section('Extensions'):
+            config.add_section('Extensions')
+        if not config.has_option('Extensions', extension_name):
+            config.set('Extensions', extension_name)
+        self.write_repo_config(config)
 
     def hg_id(self):
         """Get the output of the hg id command (truncated node)"""
