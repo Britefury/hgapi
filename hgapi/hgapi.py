@@ -155,6 +155,8 @@ class Repo(object):
         self.__on_filesystem_modified = on_filesystem_modified
         # Call hg_status to check that the repo is valid
         self.hg_status()
+        self.__extensions = []
+        self.__refresh_extensions()
  
     def __getitem__(self, rev=slice(0, 'tip')):
         """Get a Revision object for the revision identifed by rev
@@ -187,6 +189,11 @@ class Repo(object):
     def write_repo_config(self, config):
         with open(os.path.join(self.path, '.hg', 'hgrc'), 'w') as f:
             config.write(f)
+        self.cfg = False
+
+    def is_extension_enabled(self, extension_name):
+        self.__refresh_extensions()
+        return extension_name in self.__extensions
 
     def enable_extension(self, extension_name):
         config = self.read_repo_config()
@@ -195,6 +202,12 @@ class Repo(object):
         if not config.has_option('Extensions', extension_name):
             config.set('Extensions', extension_name)
         self.write_repo_config(config)
+
+    def __refresh_extensions(self):
+        if not self.cfg:
+            self.cfg = self.read_config()
+        self.__extensions = set(self.cfg.get('Extensions', []))
+
 
     def hg_id(self):
         """Get the output of the hg id command (truncated node)"""

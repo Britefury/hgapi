@@ -293,6 +293,11 @@ class TestHgAPI(unittest.TestCase):
         config = self.repo.read_repo_config()
         self.assertTrue(config.has_option('Extensions', 'rebase'))
 
+    def test_220_extensions(self):
+        self.assertFalse(self.repo.is_extension_enabled('transplant'))
+        self.repo.enable_extension('transplant')
+        self.assertTrue(self.repo.is_extension_enabled('transplant'))
+
 
 
 
