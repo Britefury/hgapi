@@ -18,6 +18,8 @@ except:
     import simplejson as json
 
 
+
+
 MERGETOOL_INTERNAL_DUMP = 'internal:dump'
 MERGETOOL_INTERNAL_FAIL = 'internal:fail'
 MERGETOOL_INTERNAL_LOCAL = 'internal:local'
@@ -30,6 +32,9 @@ class HGError (Exception):
     pass
 
 class HGCannotLaunchError (HGError):
+    pass
+
+class HGExtensionDisabledError (HGError):
     pass
 
 
@@ -155,7 +160,7 @@ class Repo(object):
         self.__on_filesystem_modified = on_filesystem_modified
         # Call hg_status to check that the repo is valid
         self.hg_status()
-        self.__extensions = []
+        self.__extensions = set()
         self.__refresh_extensions()
  
     def __getitem__(self, rev=slice(0, 'tip')):
@@ -197,16 +202,16 @@ class Repo(object):
 
     def enable_extension(self, extension_name):
         config = self.read_repo_config()
-        if not config.has_section('Extensions'):
-            config.add_section('Extensions')
-        if not config.has_option('Extensions', extension_name):
-            config.set('Extensions', extension_name)
+        if not config.has_section('extensions'):
+            config.add_section('extensions')
+        if not config.has_option('extensions', extension_name):
+            config.set('extensions', extension_name, '')
         self.write_repo_config(config)
 
     def __refresh_extensions(self):
         if not self.cfg:
             self.cfg = self.read_config()
-        self.__extensions = set(self.cfg.get('Extensions', []))
+        self.__extensions = set(self.cfg.get('extensions', []))
 
 
     def hg_id(self):
@@ -309,6 +314,15 @@ class Repo(object):
             args.append(branch_name)
         branch = self.hg_command("branch", *args)
         return branch.strip()
+
+    def hg_rebase(self, source, destination):
+        if not self.is_extension_enabled('rebase'):
+            raise HGExtensionDisabledError, 'rebase extension is disabled'
+        cmd = ['rebase', '--source', source, '--dest', destination]
+        return self.hg_command(*cmd)
+
+    def enable_rebase(self):
+        self.enable_extension('rebase')
 
     def get_branches(self):
         """ Returns a list of branches from the repo, including versions """

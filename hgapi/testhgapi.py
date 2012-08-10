@@ -25,6 +25,7 @@ class TestHgAPI(unittest.TestCase):
     def tearDownClass(self):
         shutil.rmtree("test")
 
+
     def test_000_Init(self):
         TestHgAPI.repo = hgapi.Repo.hg_init("./test", user=self._user)
         self.assertTrue(os.path.exists("test/.hg"))
@@ -244,7 +245,7 @@ class TestHgAPI(unittest.TestCase):
         # create a new branch, should still be default in branches until we commit
         # but branch should return the new branch
         self.assertEquals(self.repo.hg_branch('test_branch'),
-            "marked working directory as branch test_branch")
+            "marked working directory as branch test_branch\n(branches are permanent and global, did you want a bookmark?)")
         self.assertEquals(self.repo.hg_branch(), "test_branch")
         branches = self.repo.get_branches()
         self.assertEquals(len(branches), 1)
@@ -263,9 +264,9 @@ class TestHgAPI(unittest.TestCase):
     def test_200_clone(self):
         dirName = './testclone'
         if os.path.exists(dirName): shutil.rmtree(dirName)
-        repo = hgapi.Repo.hg_clone(dirName, 'https://bitbucket.org/haard/hgapi', user='testuser')
+        repo = hgapi.Repo.hg_clone(dirName, './test', user='testuser')
         self.assertTrue(os.path.exists(dirName))
-        self.assertTrue(os.path.exists(os.path.join(dirName, 'hgapi')))
+        self.assertTrue(os.path.exists(os.path.join(dirName, 'file3.txt')))
         shutil.rmtree(dirName)
         self.assertFalse(os.path.exists(dirName))
 
@@ -273,7 +274,7 @@ class TestHgAPI(unittest.TestCase):
         dirName = './testclone2'
         if os.path.exists(dirName): shutil.rmtree(dirName)
         os.makedirs(dirName)
-        self.assertRaises(hgapi.HGError, lambda: hgapi.Repo.hg_clone(dirName, 'https://bitbucket.org/haard/hgapi', user=self._user))
+        self.assertRaises(hgapi.HGError, lambda: hgapi.Repo.hg_clone(dirName, './test', user=self._user))
         shutil.rmtree(dirName)
         self.assertFalse(os.path.exists(dirName))
 
@@ -281,22 +282,75 @@ class TestHgAPI(unittest.TestCase):
         dirName = './testclone2'
         if os.path.exists(dirName): shutil.rmtree(dirName)
         os.makedirs(dirName)
-        repo = hgapi.Repo.hg_clone(dirName, 'https://bitbucket.org/haard/hgapi', user=self._user, ok_if_local_dir_exists=True)
+        repo = hgapi.Repo.hg_clone(dirName, './test', user=self._user, ok_if_local_dir_exists=True)
         self.assertTrue(os.path.exists(dirName))
         shutil.rmtree(dirName)
         self.assertFalse(os.path.exists(dirName))
 
     def test_210_repo_config(self):
         config = self.repo.read_repo_config()
-        self.assertFalse(config.has_option('Extensions', 'rebase'))
+        self.assertFalse(config.has_option('extensions', 'rebase'))
         self.repo.enable_extension('rebase')
         config = self.repo.read_repo_config()
-        self.assertTrue(config.has_option('Extensions', 'rebase'))
+        self.assertTrue(config.has_option('extensions', 'rebase'))
+        config.remove_option('extensions', 'rebase')
+        self.repo.write_repo_config(config)
 
     def test_220_extensions(self):
         self.assertFalse(self.repo.is_extension_enabled('transplant'))
         self.repo.enable_extension('transplant')
         self.assertTrue(self.repo.is_extension_enabled('transplant'))
+        config = self.repo.read_repo_config()
+        config.remove_option('extensions', 'transplant')
+        self.repo.write_repo_config(config)
+
+    def test_230_rebase(self):
+        self.repo.hg_update('default')
+
+        #Store this version
+        parent_node = self.repo.hg_node()
+        parent_rev = self.repo.revision(parent_node)
+
+        #creates new head
+        with open("test/file4.txt", "w") as out:
+            out.write("this is more stuff")
+        self.repo.hg_add("file4.txt")
+        self.repo.hg_commit("adding file4 - pre rebase", user="test")
+        default_child_node = self.repo.hg_node()
+        default_child_rev = self.repo.revision(default_child_node)
+
+        self.repo.hg_update(parent_node)
+
+        #create head with branch
+        with open("test/file5.txt", "w") as out:
+            out.write("this is more stuff")
+        self.repo.hg_add("file5.txt")
+        self.repo.hg_branch('rebase_branch')
+        self.repo.hg_commit('adding file5 for rebase branch', user='test')
+        rebase_child_node = self.repo.hg_node()
+        rebase_child_rev = self.repo.revision(rebase_child_node)
+
+        # check the structure: rebase_child -> parent  and  default_child -> parent
+        self.assertEqual(default_child_rev.parents, [parent_rev.rev])
+        self.assertEqual(rebase_child_rev.parents, [parent_rev.rev])
+
+
+        # Now try rebasing
+        # Ensure that it failed without first enabling the extension
+        self.assertRaises(hgapi.HGExtensionDisabledError, lambda: self.repo.hg_rebase(rebase_child_node, default_child_node))
+
+        # Now enable and try again
+        self.repo.enable_rebase()
+        self.repo.hg_rebase(rebase_child_node, default_child_node)
+
+        # Check the new structure
+        new_default_rev = self.repo.revision('default')
+
+        self.assertEqual(new_default_rev.parents, [default_child_rev.rev])
+
+
+
+
 
 
 
