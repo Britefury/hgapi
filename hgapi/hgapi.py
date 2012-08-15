@@ -428,9 +428,14 @@ class Repo(object):
     def enable_rebase(self):
         self.enable_extension('rebase')
 
-    def get_branches(self):
+    def get_branches(self, active_only=False, show_closed=False):
         """ Returns a list of branches from the repo, including versions """
-        branches = self.hg_command("branches")
+        cmd = ['branches']
+        if active_only:
+            cmd.append('--active')
+        if show_closed:
+            cmd.append('--closed')
+        branches = self.hg_command(*cmd)
         branch_list = branches.strip().split("\n")
         values = []
         for branch in branch_list:
@@ -442,20 +447,8 @@ class Repo(object):
             values.append({'name':name, 'version':version})
         return values
 
-    def get_branch_names(self):
-        """ Returns a list of branch names from the repo. """
-        branches = self.hg_command("branches")
-        branch_list = branches.strip().split("\n")
-        values = []
-        for branch in branch_list:
-            b = branch.partition(" ")
-            if not b:
-                continue
-            name = b[0]
-            if name:
-                name = name.strip()
-                values.append(name)
-        return values
+    def get_branch_names(self, active_only=False, show_closed=False):
+        return [branch['name']   for branch in self.get_branches(active_only=active_only, show_closed=show_closed)]
 
     def hg_status(self):
         """Get repository status.
