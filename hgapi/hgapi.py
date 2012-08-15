@@ -206,7 +206,7 @@ class Repo(object):
             config.add_section('extensions')
         if not config.has_option('extensions', extension_name):
             config.set('extensions', extension_name, '')
-        self.write_repo_config(config)
+            self.write_repo_config(config)
 
     def __refresh_extensions(self):
         if not self.cfg:
@@ -318,7 +318,7 @@ class Repo(object):
     def hg_rebase(self, source, destination):
         if not self.is_extension_enabled('rebase'):
             raise HGExtensionDisabledError, 'rebase extension is disabled'
-        cmd = ['rebase', '--source', source, '--dest', destination]
+        cmd = ['rebase', '--source', str(source), '--dest', str(destination)]
         return self.hg_command(*cmd)
 
     def enable_rebase(self):
