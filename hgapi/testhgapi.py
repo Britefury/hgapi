@@ -287,7 +287,48 @@ class TestHgAPI(unittest.TestCase):
         shutil.rmtree(dirName)
         self.assertFalse(os.path.exists(dirName))
 
-    def test_210_repo_config(self):
+    def test_210_resolve(self):
+        # Switch to default branch and make changes
+        self.repo.hg_update('default')
+
+        # Note teh start point
+        start = self.repo.hg_node()
+
+        with open("test/file2.txt", "a+") as out:
+            out.write("resolve_stuff1")
+        self.repo.hg_commit('First change to file2')
+        ch1 = self.repo.hg_node()
+
+        # Switch to default branch and make different changes
+        self.repo.hg_update(start)
+        with open("test/file2.txt", "a+") as out:
+            out.write("resolve_stuff2")
+        self.repo.hg_commit('Different change to file2')
+        ch2 = self.repo.hg_node()
+
+        # Switch back to the first set of changes
+        self.repo.hg_update(ch1)
+        # Attempt to merge in the second
+        self.assertRaises(hgapi.HGError, lambda: self.repo.hg_merge(ch2, tool=hgapi.MERGETOOL_INTERNAL_FAIL))
+
+        # Check that hg_resolve_list gets us the expected list of unresolved files
+        self.assertEqual(hgapi.ResolveState(unresolved=[u'file2.txt']), self.repo.hg_resolve_list())
+        # Try marking them as resolved
+        self.repo.hg_resolve_mark_as_resolved()
+        self.assertEqual(hgapi.ResolveState(resolved=[u'file2.txt']), self.repo.hg_resolve_list())
+        # Try marking them as unresolved
+        self.repo.hg_resolve_mark_as_unresolved()
+        self.assertEqual(hgapi.ResolveState(unresolved=[u'file2.txt']), self.repo.hg_resolve_list())
+        # Try remerging
+        self.repo.hg_resolve_remerge(tool=hgapi.MERGETOOL_INTERNAL_LOCAL)
+        self.assertEqual(hgapi.ResolveState(resolved=[u'file2.txt']), self.repo.hg_resolve_list())
+
+        # Commit the changes
+        self.repo.hg_commit('Merge')
+
+
+
+    def test_220_repo_config(self):
         config = self.repo.read_repo_config()
         self.assertFalse(config.has_option('extensions', 'rebase'))
         self.repo.enable_extension('rebase')
@@ -296,7 +337,7 @@ class TestHgAPI(unittest.TestCase):
         config.remove_option('extensions', 'rebase')
         self.repo.write_repo_config(config)
 
-    def test_220_extensions(self):
+    def test_230_extensions(self):
         self.assertFalse(self.repo.is_extension_enabled('transplant'))
         self.repo.enable_extension('transplant')
         self.assertTrue(self.repo.is_extension_enabled('transplant'))
@@ -304,7 +345,7 @@ class TestHgAPI(unittest.TestCase):
         config.remove_option('extensions', 'transplant')
         self.repo.write_repo_config(config)
 
-    def test_230_rebase(self):
+    def test_240_rebase(self):
         self.repo.hg_update('default')
 
         #Store this version

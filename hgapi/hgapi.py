@@ -84,6 +84,11 @@ class Revision(object):
 class Status (object):
     """A representation of a repo status.
     Available fields are:
+    added
+    modified
+    removed
+    untracked
+    missing
     """
     def __init__(self, added=None, modified=None, removed=None, untracked=None, missing=None):
         self.added = set(added)   if added is not None   else set()
@@ -146,6 +151,60 @@ class Status (object):
                    self.removed != other.removed
         else:
             return NotImplemented
+
+
+    def __repr__(self):
+        return 'Status(added={0}, modified={1}, removed={2}, untracked={3}, missing={4})'.format(repr(self.added),
+            repr(self.modified), repr(self.removed), repr(self.untracked), repr(self.missing))
+
+    def __str__(self):
+        return 'Status(added={0}, modified={1}, removed={2}, untracked={3}, missing={4})'.format(self.added,
+            self.modified, self.removed, self.untracked, self.missing)
+
+
+class ResolveState (object):
+    """A representation of a repo resolve state.
+    Available fields are:
+    unresolved
+    resolved
+    """
+    def __init__(self, unresolved=None, resolved=None):
+        self.unresolved = set(unresolved)   if unresolved is not None   else set()
+        self.resolved = set(resolved)   if resolved is not None   else set()
+
+
+    @property
+    def has_any_files(self):
+        return len(self.unresolved) > 0  or  len(self.resolved) > 0
+
+    @property
+    def has_unresolved_files(self):
+        return len(self.unresolved) > 0
+
+    @property
+    def has_resolved_files(self):
+        return len(self.resolved) > 0
+
+
+    def __eq__(self, other):
+        if isinstance(other, ResolveState):
+            return self.unresolved == other.unresolved  and  self.resolved == other.resolved
+        else:
+            return NotImplemented
+
+
+    def __ne__(self, other):
+        if isinstance(other, ResolveState):
+            return self.unresolved != other.unresolved  or  self.resolved != other.resolved
+        else:
+            return NotImplemented
+
+
+    def __repr__(self):
+        return 'ResolveState(unresolved={0}, resolved={1})'.format(repr(self.unresolved), repr(self.resolved))
+
+    def __str__(self):
+        return 'ResolveState(unresolved={0}, resolved={1})'.format(self.unresolved, self.resolved)
 
 
 class Repo(object):
@@ -257,6 +316,51 @@ class Repo(object):
         self.hg_command(*cmd)
         if self.__on_filesystem_modified is not None:
             self.__on_filesystem_modified()
+
+    def hg_resolve_remerge(self, tool=None, files=None):
+        cmd = ['resolve']
+        if tool is not None:
+            cmd.append('--tool')
+            cmd.append(tool)
+        if files is None:
+            cmd.append('--all')
+        else:
+            cmd.extend(files)
+        self.hg_command(*cmd)
+        if self.__on_filesystem_modified is not None:
+            self.__on_filesystem_modified()
+
+    def hg_resolve_mark_as_resolved(self, files=None):
+        cmd = ['resolve', '-m']
+        if files is not None:
+            cmd.extend(files)
+        self.hg_command(*cmd)
+
+    def hg_resolve_mark_as_unresolved(self, files=None):
+        cmd = ['resolve', '-u']
+        if files is not None:
+            cmd.extend(files)
+        self.hg_command(*cmd)
+
+    def hg_resolve_list(self):
+        cmd = ['resolve', '-l']
+        resolve_result = self.hg_command(*cmd)
+        unresolved_list = resolve_result.strip().split("\n")
+        # Create the resolve state
+        state = ResolveState()
+        # Fill it in
+        for u in unresolved_list:
+            u = u.strip()
+            if u != '':
+                code, name = u.split(' ')
+                if code == 'R':
+                    state.resolved.add(name)
+                elif code == 'U':
+                    state.unresolved.add(name)
+                else:
+                    raise ValueError, 'Unknown resolve code \'{0}\''.format(code)
+        return state
+
 
     def hg_revert(self, all=False, *files):
         """Revert repository"""
