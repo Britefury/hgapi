@@ -482,8 +482,11 @@ class Repo(object):
     def revision(self, identifier):
         """Get the identified revision as a Revision object"""
         out = self.hg_log(identifier=str(identifier), template=self.rev_log_tpl)
-                
-        return Revision(out)   
+
+        if len(out.strip()) == 0:
+            return None
+        else:
+            return Revision(out)
 
     def revisions(self, identifier):
         """Returns a list of Revision objects for the given identifier"""
