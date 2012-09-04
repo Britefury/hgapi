@@ -390,6 +390,60 @@ class TestHgAPI(unittest.TestCase):
         self.assertEqual(new_default_rev.parents, [default_child_rev.rev])
 
 
+    def test_250_user_config(self):
+        # Read the config and ensure option does not exist
+        config = self.repo.read_user_config()
+        self.assertFalse(config.has_section('hgapi_test'))
+        self.assertFalse(config.has_option('hgapi_test', 'test_option'))
+
+        # Add the section and the option, and write
+        config.add_section('hgapi_test')
+        config.set('hgapi_test', 'test_option', 'hello')
+        self.repo.write_user_config(config)
+
+        # Read back, check existence of section and value
+        config = self.repo.read_user_config()
+        self.assertTrue(config.has_section('hgapi_test'))
+        self.assertEqual(config.get('hgapi_test', 'test_option'), 'hello')
+
+        # Now remove
+        config.remove_option('hgapi_test', 'test_option')
+        config.remove_section('hgapi_test')
+        self.repo.write_user_config(config)
+
+        # Read the config and ensure option does not exist
+        config = self.repo.read_user_config()
+        self.assertFalse(config.has_section('hgapi_test'))
+        self.assertFalse(config.has_option('hgapi_test', 'test_option'))
+
+
+
+    def test_260_authentication(self):
+        # Set authentication
+        self.repo.set_authentication('bb', 'https://bitbucket.org', 'myuser', 'mypass')
+
+        # Read config and check values
+        config = self.repo.read_user_config()
+        self.assertEqual(config.get('auth', 'bb.prefix'), 'https://bitbucket.org')
+        self.assertEqual(config.get('auth', 'bb.username'), 'myuser')
+        self.assertEqual(config.get('auth', 'bb.password'), 'mypass')
+        prefix, username, password = self.repo.get_authentication('bb')
+        self.assertEqual(prefix, 'https://bitbucket.org')
+        self.assertEqual(username, 'myuser')
+        self.assertEqual(password, 'mypass')
+
+        # Remove authentication
+        self.repo.remove_authentication('bb')
+
+        # Read config and check
+        config = self.repo.read_user_config()
+        self.assertFalse(config.has_option('auth', 'bb.prefix'))
+        self.assertFalse(config.has_option('auth', 'bb.username'))
+        self.assertFalse(config.has_option('auth', 'bb.password'))
+        self.assertIsNone(self.repo.get_authentication('bb'))
+
+
+
 
 
 

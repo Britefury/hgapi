@@ -1,15 +1,16 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function, unicode_literals, with_statement
 from subprocess import Popen, STDOUT, PIPE
+from datetime import datetime
 try:
     from urllib import unquote
 except: #python 3
     from urllib.parse import unquote
 
 try:
-    from ConfigParser import ConfigParser
+    from ConfigParser import ConfigParser, NoOptionError
 except: #python 3
-    from configparser import ConfigParser
+    from configparser import ConfigParser, NoOptionError
 import re
 import os
 try:
@@ -208,13 +209,16 @@ class ResolveState (object):
 
 
 class Repo(object):
+    __user_cfg_mod_date = None
+
     """A representation of a Mercurial repository"""
     def __init__(self, path, user=None, on_filesystem_modified=None):
         """Create a Repo object from the repository at path"""
         # Call hg_version() to check that it is installed and that it works
         hg_version()
         self.path = path
-        self.cfg = False
+        self.__cfg_date = None
+        self.__cfg = None
         self.user = user
         self.__on_filesystem_modified = on_filesystem_modified
         # Call hg_status to check that the repo is valid
@@ -247,13 +251,15 @@ class Repo(object):
 
     def read_repo_config(self):
         config = ConfigParser()
-        config.read(os.path.join(self.path, '.hg', 'hgrc'))
+        config_path = os.path.join(self.path, '.hg', 'hgrc')
+        if os.path.exists(config_path):
+            config.read(config_path)
         return config
 
     def write_repo_config(self, config):
         with open(os.path.join(self.path, '.hg', 'hgrc'), 'w') as f:
             config.write(f)
-        self.cfg = False
+        self.__cfg = None
 
     def is_extension_enabled(self, extension_name):
         self.__refresh_extensions()
@@ -267,10 +273,58 @@ class Repo(object):
             config.set('extensions', extension_name, '')
             self.write_repo_config(config)
 
+
+    @staticmethod
+    def read_user_config():
+        config = ConfigParser()
+        config_path = os.path.expanduser(os.path.join('~', '.hgrc'))
+        if os.path.exists(config_path):
+            config.read(config_path)
+        return config
+
+    @staticmethod
+    def write_user_config(config):
+        with open(os.path.expanduser(os.path.join('~', '.hgrc')), 'w') as f:
+            config.write(f)
+        Repo.__user_cfg_mod_date = datetime.now()
+
+    @staticmethod
+    def get_authentication(alias):
+        config = Repo.read_user_config()
+        if config.has_section('auth'):
+            try:
+                uri_prefix = config.get('auth', '{0}.prefix'.format(alias))
+                username = config.get('auth', '{0}.username'.format(alias))
+                password = config.get('auth', '{0}.password'.format(alias))
+                return uri_prefix, username, password
+            except NoOptionError:
+                return None
+        else:
+            return None
+
+    @staticmethod
+    def set_authentication(alias, uri_prefix, username, password):
+        config = Repo.read_user_config()
+        if not config.has_section('auth'):
+            config.add_section('auth')
+        config.set('auth', '{0}.prefix'.format(alias), uri_prefix)
+        config.set('auth', '{0}.username'.format(alias), username)
+        config.set('auth', '{0}.password'.format(alias), password)
+        Repo.write_user_config(config)
+
+    @staticmethod
+    def remove_authentication(alias):
+        config = Repo.read_user_config()
+        if config.has_section('auth'):
+            config.remove_option('auth', '{0}.prefix'.format(alias))
+            config.remove_option('auth', '{0}.username'.format(alias))
+            config.remove_option('auth', '{0}.password'.format(alias))
+            Repo.write_user_config(config)
+
+
     def __refresh_extensions(self):
-        if not self.cfg:
-            self.cfg = self.read_config()
-        self.__extensions = set(self.cfg.get('extensions', []))
+        cfg = self.__refresh_config()
+        self.__extensions = set(cfg.get('extensions', []))
 
 
     def hg_id(self):
@@ -509,22 +563,30 @@ class Repo(object):
             main, ign, sub = section.partition(".")
             sect_cfg = cfg.setdefault(main, {})
             sect_cfg[sub] = value.strip()
-        self.cfg = cfg
+        self.__cfg = cfg
+        self.__cfg_date = datetime.now()
         return cfg
+
+
+    def __refresh_config(self):
+        if self.__cfg is None  or  \
+                (self.__cfg_date is not None and  \
+                Repo.__user_cfg_mod_date is not None and  \
+                self.__cfg_date < Repo.__user_cfg_mod_date):
+            self.read_config()
+        return self.__cfg
 
     def config(self, section, key):
         """Return the value of a configuration variable"""
-        if not self.cfg: 
-            self.cfg = self.read_config()
-        return self.cfg.get(section, {}).get(key, None)
+        cfg = self.__refresh_config()
+        return cfg.get(section, {}).get(key, None)
     
     def configbool(self, section, key):
         """Return a config value as a boolean value.
         Empty values, the string 'false' (any capitalization),
         and '0' are considered False, anything else True"""
-        if not self.cfg: 
-            self.cfg = self.read_config()
-        value = self.cfg.get(section, {}).get(key, None)
+        cfg = self.__refresh_config()
+        value = cfg.get(section, {}).get(key, None)
         if not value: 
             return False
         if (value == "0" 
@@ -536,9 +598,8 @@ class Repo(object):
     def configlist(self, section, key):
         """Return a config value as a list; will try to create a list
         delimited by commas, or whitespace if no commas are present"""
-        if not self.cfg: 
-            self.cfg = self.read_config()
-        value = self.cfg.get(section, {}).get(key, None)
+        cfg = self.__refresh_config()
+        value = cfg.get(section, {}).get(key, None)
         if not value: 
             return []
         if value.count(","):
