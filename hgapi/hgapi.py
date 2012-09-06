@@ -294,7 +294,8 @@ class Repo(object):
         """Run a hg command in path and return the result.
         Throws on error.
         Adds SSH key path"""
-        return self.hg_command(_ssh_cmd_config_option(self.ssh_key_path) + list(args))
+
+        return self.hg_command(*(_ssh_cmd_config_option(self.ssh_key_path) + list(args)))
 
     def read_repo_config(self):
         config = ConfigParser()
