@@ -632,7 +632,7 @@ class Repo(object):
         return repo
 
     @staticmethod
-    def hg_clone(path, remote_uri, ok_if_local_dir_exists=False, user=None, ssh_key_path=None, on_filesystem_modified=None):
+    def hg_clone(path, remote_uri, user=None, ssh_key_path=None, on_filesystem_modified=None, ok_if_local_dir_exists=False):
         """Clone an existing repo"""
         # Call hg_version() to check that it is installed and that it works
         hg_version()
