@@ -280,7 +280,7 @@ class Repo(object):
     def hg_command(self, *args):
         """Run a hg command in path and return the result.
         Throws on error."""
-        cmd = ["hg", "--cwd", self.path, "--encoding", "UTF-8"] + _ssh_cmd_config_option(self.ssh_key_path) + list(args)
+        cmd = ["hg", "--cwd", self.path, "--encoding", "UTF-8"] + list(args)
         proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
 
         out, err = [x.decode("utf-8") for x in  proc.communicate()]
@@ -289,6 +289,12 @@ class Repo(object):
             raise HGError("Error running %s:\n\tErr: %s\n\tOut: %s\n\tExit: %s"
             % (' '.join(cmd),err,out,proc.returncode))
         return out
+
+    def hg_remote_command(self, *args):
+        """Run a hg command in path and return the result.
+        Throws on error.
+        Adds SSH key path"""
+        return self.hg_command(_ssh_cmd_config_option(self.ssh_key_path) + list(args))
 
     def read_repo_config(self):
         config = ConfigParser()
@@ -452,13 +458,13 @@ class Repo(object):
         self.hg_command("commit", "-m", message, *args)
 
     def hg_pull(self):
-        return self.hg_command('pull')
+        return self.hg_remote_command('pull')
 
     def hg_push(self, force=False):
         cmd = ['push']
         if force:
             cmd.append('--force')
-        return self.hg_command(*cmd)
+        return self.hg_remote_command(*cmd)
 
     def hg_log(self, identifier=None, limit=None, template=None, **kwargs):
         """Get repositiory log."""
