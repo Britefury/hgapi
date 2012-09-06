@@ -418,29 +418,23 @@ class TestHgAPI(unittest.TestCase):
 
 
 
-    def test_260_authentication(self):
+    def test_260_user_ssh_key_path(self):
         # Set authentication
-        self.repo.set_authentication('bb', 'https://bitbucket.org', 'myuser', 'mypass')
+        self.repo.set_user_ssh_key_path('/path/to/my/key')
 
         # Read config and check values
         config = self.repo.read_user_config()
-        self.assertEqual(config.get('auth', 'bb.prefix'), 'https://bitbucket.org')
-        self.assertEqual(config.get('auth', 'bb.username'), 'myuser')
-        self.assertEqual(config.get('auth', 'bb.password'), 'mypass')
-        prefix, username, password = self.repo.get_authentication('bb')
-        self.assertEqual(prefix, 'https://bitbucket.org')
-        self.assertEqual(username, 'myuser')
-        self.assertEqual(password, 'mypass')
+        self.assertEqual(config.get('ui', 'ssh'), hgapi._platform_ssh_cmd('/path/to/my/key'))
+        key_cmd = self.repo.get_user_ssh_cmd()
+        self.assertEqual(key_cmd, hgapi._platform_ssh_cmd('/path/to/my/key'))
 
         # Remove authentication
-        self.repo.remove_authentication('bb')
+        self.repo.remove_user_ssh_cmd()
 
         # Read config and check
         config = self.repo.read_user_config()
-        self.assertFalse(config.has_option('auth', 'bb.prefix'))
-        self.assertFalse(config.has_option('auth', 'bb.username'))
-        self.assertFalse(config.has_option('auth', 'bb.password'))
-        self.assertIsNone(self.repo.get_authentication('bb'))
+        self.assertFalse(config.has_option('ui', 'ssh'))
+        self.assertIsNone(self.repo.get_user_ssh_cmd())
 
 
 

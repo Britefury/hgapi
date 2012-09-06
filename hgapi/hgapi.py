@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function, unicode_literals, with_statement
+import sys
 from subprocess import Popen, STDOUT, PIPE
 from datetime import datetime
 try:
@@ -18,6 +19,38 @@ try:
 except:
     import simplejson as json
 
+
+
+
+PLATFORM_WINDOWS = 'windows'
+PLATFORM_LINUX = 'linux'
+PLATFORM_MAC = 'mac'
+
+
+def _get_platform():
+    os_name = sys.registry['os.name']
+    if os_name.startswith( 'Windows' ):
+        return PLATFORM_WINDOWS
+    elif os_name.startswith( 'Linux' ):
+        return PLATFORM_LINUX
+    elif os_name.startswith( 'Mac' ):
+        return PLATFORM_MAC
+    else:
+        raise ValueError, 'Unrecognized os.name \'{0}\''.format(os_name)
+
+
+
+
+def _platform_ssh_cmd(key_path):
+    platform = _get_platform()
+    if platform == PLATFORM_WINDOWS:
+        return 'tortoiseplink.exe -ssh -i "{0}"'.format(key_path)
+    elif platform == PLATFORM_LINUX:
+        return 'ssh -i "{0}"'.format(key_path)
+    elif platform == PLATFORM_MAC:
+        return 'ssh -i "{0}"'.format(key_path)
+    else:
+        raise ValueError, 'Unreckognized platform \'{0}\''.format(platform)
 
 
 
@@ -288,37 +321,35 @@ class Repo(object):
             config.write(f)
         Repo.__user_cfg_mod_date = datetime.now()
 
+
     @staticmethod
-    def get_authentication(alias):
+    def get_user_ssh_cmd():
         config = Repo.read_user_config()
-        if config.has_section('auth'):
+        if config.has_section('ui'):
             try:
-                uri_prefix = config.get('auth', '{0}.prefix'.format(alias))
-                username = config.get('auth', '{0}.username'.format(alias))
-                password = config.get('auth', '{0}.password'.format(alias))
-                return uri_prefix, username, password
+                return config.get('ui', 'ssh')
             except NoOptionError:
                 return None
         else:
             return None
 
     @staticmethod
-    def set_authentication(alias, uri_prefix, username, password):
+    def set_user_ssh_cmd(ssh_cmd):
         config = Repo.read_user_config()
-        if not config.has_section('auth'):
-            config.add_section('auth')
-        config.set('auth', '{0}.prefix'.format(alias), uri_prefix)
-        config.set('auth', '{0}.username'.format(alias), username)
-        config.set('auth', '{0}.password'.format(alias), password)
+        if not config.has_section('ui'):
+            config.add_section('ui')
+        config.set('ui', 'ssh', ssh_cmd)
         Repo.write_user_config(config)
 
     @staticmethod
-    def remove_authentication(alias):
+    def set_user_ssh_key_path(ssh_key_path):
+        Repo.set_user_ssh_cmd(_platform_ssh_cmd(ssh_key_path))
+
+    @staticmethod
+    def remove_user_ssh_cmd():
         config = Repo.read_user_config()
-        if config.has_section('auth'):
-            config.remove_option('auth', '{0}.prefix'.format(alias))
-            config.remove_option('auth', '{0}.username'.format(alias))
-            config.remove_option('auth', '{0}.password'.format(alias))
+        if config.has_section('ui'):
+            config.remove_option('ui', 'ssh')
             Repo.write_user_config(config)
 
 
