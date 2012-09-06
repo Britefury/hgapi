@@ -565,7 +565,22 @@ class Repo(object):
         for entry in out.split('\n')[:-1]:
             revs.append(Revision(entry))
 
-        return revs      
+        return revs
+
+
+    def hg_paths(self):
+        """Returns aliases for remote repositories"""
+        out = self.hg_command('paths')
+        lines = [l.strip()   for l in out.split('\n')]
+        pairs = [l.split('=')   for l in lines   if l != '']
+        return {a.strip() : b.strip()   for a, b in pairs}
+
+    def hg_path(self, name):
+        """Returns the alias for the given name"""
+        out = self.hg_command('paths', name)
+        out = out.strip()
+        return out   if out != ''   else None
+
     
     def read_config(self):
         """Read the configuration as seen with 'hg showconfig'

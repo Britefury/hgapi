@@ -287,7 +287,16 @@ class TestHgAPI(unittest.TestCase):
         shutil.rmtree(dirName)
         self.assertFalse(os.path.exists(dirName))
 
-    def test_210_resolve(self):
+    def test_210_paths(self):
+        dirName = './testclone'
+        if os.path.exists(dirName): shutil.rmtree(dirName)
+        repo = hgapi.Repo.hg_clone(dirName, './test', user='testuser')
+        self.assertEqual({u'default' : os.path.abspath('./test')}, repo.hg_paths())
+        self.assertEqual(os.path.abspath('./test'), repo.hg_path('default'))
+        shutil.rmtree(dirName)
+        self.assertFalse(os.path.exists(dirName))
+
+    def test_220_resolve(self):
         # Switch to default branch and make changes
         self.repo.hg_update('default')
 
@@ -328,7 +337,7 @@ class TestHgAPI(unittest.TestCase):
 
 
 
-    def test_220_repo_config(self):
+    def test_230_repo_config(self):
         config = self.repo.read_repo_config()
         self.assertFalse(config.has_option('extensions', 'rebase'))
         self.repo.enable_extension('rebase')
@@ -337,7 +346,7 @@ class TestHgAPI(unittest.TestCase):
         config.remove_option('extensions', 'rebase')
         self.repo.write_repo_config(config)
 
-    def test_230_extensions(self):
+    def test_240_extensions(self):
         self.assertFalse(self.repo.is_extension_enabled('transplant'))
         self.repo.enable_extension('transplant')
         self.assertTrue(self.repo.is_extension_enabled('transplant'))
@@ -345,7 +354,7 @@ class TestHgAPI(unittest.TestCase):
         config.remove_option('extensions', 'transplant')
         self.repo.write_repo_config(config)
 
-    def test_240_rebase(self):
+    def test_250_rebase(self):
         self.repo.hg_update('default')
 
         #Store this version
@@ -390,7 +399,7 @@ class TestHgAPI(unittest.TestCase):
         self.assertEqual(new_default_rev.parents, [default_child_rev.rev])
 
 
-    def test_250_user_config(self):
+    def test_260_user_config(self):
         # Read the config and ensure option does not exist
         config = self.repo.read_user_config()
         self.assertFalse(config.has_section('hgapi_test'))
