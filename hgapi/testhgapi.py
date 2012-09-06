@@ -418,26 +418,6 @@ class TestHgAPI(unittest.TestCase):
 
 
 
-    def test_260_user_ssh_key_path(self):
-        # Set authentication
-        self.repo.set_user_ssh_key_path('/path/to/my/key')
-
-        # Read config and check values
-        config = self.repo.read_user_config()
-        self.assertEqual(config.get('ui', 'ssh'), hgapi._platform_ssh_cmd('/path/to/my/key'))
-        key_cmd = self.repo.get_user_ssh_cmd()
-        self.assertEqual(key_cmd, hgapi._platform_ssh_cmd('/path/to/my/key'))
-
-        # Remove authentication
-        self.repo.remove_user_ssh_cmd()
-
-        # Read config and check
-        config = self.repo.read_user_config()
-        self.assertFalse(config.has_option('ui', 'ssh'))
-        self.assertIsNone(self.repo.get_user_ssh_cmd())
-
-
-
 
 
 

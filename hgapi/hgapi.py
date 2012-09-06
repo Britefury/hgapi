@@ -41,17 +41,24 @@ def _get_platform():
 
 
 
-def _platform_ssh_cmd(key_path):
+def _platform_ssh_cmd(ssh_key_path):
     platform = _get_platform()
     if platform == PLATFORM_WINDOWS:
-        return 'tortoiseplink.exe -ssh -i "{0}"'.format(key_path)
+        return 'TortoisePLink.exe -ssh -i "{0}"'.format(ssh_key_path)
     elif platform == PLATFORM_LINUX:
-        return 'ssh -i "{0}"'.format(key_path)
+        return 'ssh -i "{0}"'.format(ssh_key_path)
     elif platform == PLATFORM_MAC:
-        return 'ssh -i "{0}"'.format(key_path)
+        return 'ssh -i "{0}"'.format(ssh_key_path)
     else:
         raise ValueError, 'Unreckognized platform \'{0}\''.format(platform)
 
+
+def _ssh_cmd_config_option(ssh_key_path):
+    if ssh_key_path is not None:
+        cmd = _platform_ssh_cmd(ssh_key_path)
+        return ['--config', 'ui.ssh="{0}"'.format(cmd.replace('"', '\\"'))]
+    else:
+        return []
 
 
 MERGETOOL_INTERNAL_DUMP = 'internal:dump'
@@ -72,10 +79,10 @@ class HGExtensionDisabledError (HGError):
     pass
 
 
-def _hg_cmd(*args):
+def _hg_cmd(ssh_key_path, *args):
     """Run a hg command in path and return the result.
     Throws on error."""
-    cmd = ["hg", "--encoding", "UTF-8"] + list(args)
+    cmd = ["hg", "--encoding", "UTF-8"] + _ssh_cmd_config_option(ssh_key_path) + list(args)
     proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
 
     out, err = [x.decode("utf-8") for x in  proc.communicate()]
@@ -245,7 +252,7 @@ class Repo(object):
     __user_cfg_mod_date = None
 
     """A representation of a Mercurial repository"""
-    def __init__(self, path, user=None, on_filesystem_modified=None):
+    def __init__(self, path, user=None, ssh_key_path=None, on_filesystem_modified=None):
         """Create a Repo object from the repository at path"""
         # Call hg_version() to check that it is installed and that it works
         hg_version()
@@ -253,6 +260,7 @@ class Repo(object):
         self.__cfg_date = None
         self.__cfg = None
         self.user = user
+        self.ssh_key_path = ssh_key_path
         self.__on_filesystem_modified = on_filesystem_modified
         # Call hg_status to check that the repo is valid
         self.hg_status()
@@ -272,7 +280,7 @@ class Repo(object):
     def hg_command(self, *args):
         """Run a hg command in path and return the result.
         Throws on error."""
-        cmd = ["hg", "--cwd", self.path, "--encoding", "UTF-8"] + list(args)
+        cmd = ["hg", "--cwd", self.path, "--encoding", "UTF-8"] + _ssh_cmd_config_option(self.ssh_key_path) + list(args)
         proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
 
         out, err = [x.decode("utf-8") for x in  proc.communicate()]
@@ -320,37 +328,6 @@ class Repo(object):
         with open(os.path.expanduser(os.path.join('~', '.hgrc')), 'w') as f:
             config.write(f)
         Repo.__user_cfg_mod_date = datetime.now()
-
-
-    @staticmethod
-    def get_user_ssh_cmd():
-        config = Repo.read_user_config()
-        if config.has_section('ui'):
-            try:
-                return config.get('ui', 'ssh')
-            except NoOptionError:
-                return None
-        else:
-            return None
-
-    @staticmethod
-    def set_user_ssh_cmd(ssh_cmd):
-        config = Repo.read_user_config()
-        if not config.has_section('ui'):
-            config.add_section('ui')
-        config.set('ui', 'ssh', ssh_cmd)
-        Repo.write_user_config(config)
-
-    @staticmethod
-    def set_user_ssh_key_path(ssh_key_path):
-        Repo.set_user_ssh_cmd(_platform_ssh_cmd(ssh_key_path))
-
-    @staticmethod
-    def remove_user_ssh_cmd():
-        config = Repo.read_user_config()
-        if config.has_section('ui'):
-            config.remove_option('ui', 'ssh')
-            Repo.write_user_config(config)
 
 
     def __refresh_extensions(self):
@@ -640,16 +617,16 @@ class Repo(object):
 
 
     @staticmethod
-    def hg_init(path, user=None, on_filesystem_modified=None):
+    def hg_init(path, user=None, ssh_key_path=None, on_filesystem_modified=None):
         """Initialize a new repo"""
         # Call hg_version() to check that it is installed and that it works
         hg_version()
-        _hg_cmd('init', path)
-        repo = Repo(path, user, on_filesystem_modified)
+        _hg_cmd(ssh_key_path, 'init', path)
+        repo = Repo(path, user, on_filesystem_modified=on_filesystem_modified)
         return repo
 
     @staticmethod
-    def hg_clone(path, remote_uri, ok_if_local_dir_exists=False, user=None, on_filesystem_modified=None):
+    def hg_clone(path, remote_uri, ok_if_local_dir_exists=False, user=None, ssh_key_path=None, on_filesystem_modified=None):
         """Clone an existing repo"""
         # Call hg_version() to check that it is installed and that it works
         hg_version()
@@ -661,8 +638,8 @@ class Repo(object):
                 raise HGError, 'Cannot clone into \'{0}\'; it is not a directory'.format(path)
         else:
             os.makedirs(path)
-        _hg_cmd('clone', remote_uri, path)
-        repo = Repo(path, user, on_filesystem_modified)
+        _hg_cmd(ssh_key_path, 'clone', remote_uri, path)
+        repo = Repo(path, user, on_filesystem_modified=on_filesystem_modified)
         return repo
 
 
