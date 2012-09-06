@@ -41,7 +41,7 @@ def _get_platform():
 
 
 
-def _platform_ssh_cmd(ssh_key_path):
+def __platform_ssh_cmd(ssh_key_path):
     platform = _get_platform()
     if platform == PLATFORM_WINDOWS:
         return 'TortoisePLink.exe -ssh -i "{0}"'.format(ssh_key_path)
@@ -55,8 +55,8 @@ def _platform_ssh_cmd(ssh_key_path):
 
 def _ssh_cmd_config_option(ssh_key_path):
     if ssh_key_path is not None:
-        cmd = _platform_ssh_cmd(ssh_key_path)
-        return ['--config', 'ui.ssh="{0}"'.format(cmd.replace('"', '\\"'))]
+        cmd = __platform_ssh_cmd(ssh_key_path)
+        return ['--config', 'ui.ssh={0}'.format(cmd)]
     else:
         return []
 
@@ -571,7 +571,7 @@ class Repo(object):
         """Read the configuration as seen with 'hg showconfig'
         Is called by __init__ - only needs to be called explicitly
         to reflect changes made since instantiation"""
-        res = self.hg_command("showconfig")
+        res = self.hg_remote_command("showconfig")
         cfg = {}
         for row in res.split("\n"):
             section, ign, value = row.partition("=")
