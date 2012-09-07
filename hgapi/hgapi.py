@@ -41,21 +41,21 @@ def _get_platform():
 
 
 
-def __platform_ssh_cmd(ssh_key_path):
+def __platform_ssh_cmd(username, ssh_key_path):
     platform = _get_platform()
     if platform == PLATFORM_WINDOWS:
-        return 'TortoisePLink.exe -ssh -i "{0}"'.format(ssh_key_path)
+        return 'TortoisePLink.exe -ssh -l {0} -i "{1}"'.format(username, ssh_key_path)
     elif platform == PLATFORM_LINUX:
-        return 'ssh -i "{0}"'.format(ssh_key_path)
+        return 'ssh -l {0} -i "{1}"'.format(username, ssh_key_path)
     elif platform == PLATFORM_MAC:
-        return 'ssh -i "{0}"'.format(ssh_key_path)
+        return 'ssh -l {0} -i "{1}"'.format(username, ssh_key_path)
     else:
         raise ValueError, 'Unreckognized platform \'{0}\''.format(platform)
 
 
-def _ssh_cmd_config_option(ssh_key_path):
-    if ssh_key_path is not None:
-        cmd = __platform_ssh_cmd(ssh_key_path)
+def _ssh_cmd_config_option(username, ssh_key_path):
+    if username is not None  and  ssh_key_path is not None:
+        cmd = __platform_ssh_cmd(username, ssh_key_path)
         return ['--config', 'ui.ssh={0}'.format(cmd)]
     else:
         return []
@@ -79,10 +79,10 @@ class HGExtensionDisabledError (HGError):
     pass
 
 
-def _hg_cmd(ssh_key_path, *args):
+def _hg_cmd(username, ssh_key_path, *args):
     """Run a hg command in path and return the result.
     Throws on error."""
-    cmd = ["hg", "--encoding", "UTF-8"] + _ssh_cmd_config_option(ssh_key_path) + list(args)
+    cmd = ["hg", "--encoding", "UTF-8"] + _ssh_cmd_config_option(username, ssh_key_path) + list(args)
     proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
 
     out, err = [x.decode("utf-8") for x in  proc.communicate()]
@@ -295,7 +295,7 @@ class Repo(object):
         Throws on error.
         Adds SSH key path"""
 
-        return self.hg_command(*(_ssh_cmd_config_option(self.ssh_key_path) + list(args)))
+        return self.hg_command(*(_ssh_cmd_config_option(self.user, self.ssh_key_path) + list(args)))
 
     def read_repo_config(self):
         config = ConfigParser()
@@ -643,7 +643,7 @@ class Repo(object):
         """Initialize a new repo"""
         # Call hg_version() to check that it is installed and that it works
         hg_version()
-        _hg_cmd(ssh_key_path, 'init', path)
+        _hg_cmd(user, ssh_key_path, 'init', path)
         repo = Repo(path, user, on_filesystem_modified=on_filesystem_modified)
         return repo
 
@@ -660,7 +660,7 @@ class Repo(object):
                 raise HGError, 'Cannot clone into \'{0}\'; it is not a directory'.format(path)
         else:
             os.makedirs(path)
-        _hg_cmd(ssh_key_path, 'clone', remote_uri, path)
+        _hg_cmd(user, ssh_key_path, 'clone', remote_uri, path)
         repo = Repo(path, user, on_filesystem_modified=on_filesystem_modified)
         return repo
 
