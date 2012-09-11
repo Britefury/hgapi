@@ -122,6 +122,22 @@ class Revision(object):
         return self.node == other.node
 
 
+    @staticmethod
+    def revision_from_log(log):
+        log = log.strip()
+        if len(log) > 0:
+            return Revision(log)
+        else:
+            return None
+
+    @staticmethod
+    def revisions_from_log(log):
+        lines = log.split('\n')[:-1]
+        lines = [line.strip()   for line in lines]
+        return [Revision(line)   for line in lines   if len(line) > 0]
+
+
+
 class Status (object):
     """A representation of a repo status.
     Available fields are:
@@ -467,15 +483,17 @@ class Repo(object):
             cmd.append('--force')
         return self.hg_remote_command(*cmd)
 
-    def hg_log(self, identifier=None, limit=None, template=None, **kwargs):
+    def hg_log(self, rev_identifier=None, limit=None, template=None, filename=None, **kwargs):
         """Get repositiory log."""
         cmds = ["log"]
-        if identifier: cmds += ['-r', str(identifier)]
+        if rev_identifier: cmds += ['-r', str(rev_identifier)]
         if limit: cmds += ['-l', str(limit)]
         if template: cmds += ['--template', str(template)]
         if kwargs:
             for key in kwargs:
                 cmds += [key, kwargs[key]]
+        if filename:
+            cmds.append(filename)
         return self.hg_command(*cmds)
 
     def hg_branch(self, branch_name=None):
@@ -548,24 +566,21 @@ class Repo(object):
     _status_codes = {'A': 'added', 'M': 'modified', 'R': 'removed', '!': 'missing', '?': 'untracked'}
     rev_log_tpl = '\{"node":"{node|short}","rev":"{rev}","author":"{author|urlescape}","branch":"{branches}","parents":"{parents}","date":"{date|isodate}","tags":"{tags}","desc":"{desc|urlescape}\"}\n'
 
-    def revision(self, identifier):
+    def revision(self, rev_identifier):
         """Get the identified revision as a Revision object"""
-        out = self.hg_log(identifier=str(identifier), template=self.rev_log_tpl)
+        out = self.hg_log(rev_identifier=str(rev_identifier), template=self.rev_log_tpl)
+        return Revision.revision_from_log(out)
 
-        if len(out.strip()) == 0:
-            return None
-        else:
-            return Revision(out)
-
-    def revisions(self, identifier):
+    def revisions(self, rev_identifier):
         """Returns a list of Revision objects for the given identifier"""
-        out = self.hg_log(identifier=str(identifier), template=self.rev_log_tpl)
+        out = self.hg_log(rev_identifier=str(rev_identifier), template=self.rev_log_tpl)
+        return Revision.revisions_from_log(out)
 
-        revs = []
-        for entry in out.split('\n')[:-1]:
-            revs.append(Revision(entry))
 
-        return revs
+    def revisions_for(self, filename, rev_identifier=None):
+        """Returns a list of Revision objects for the given identifier"""
+        out = self.hg_log(rev_identifier=str(rev_identifier)   if rev_identifier is not None   else None, template=self.rev_log_tpl, filename=filename)
+        return Revision.revisions_from_log(out)
 
 
     def hg_paths(self):
