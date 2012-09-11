@@ -601,6 +601,7 @@ class Repo(object):
         """Read the configuration as seen with 'hg showconfig'
         Is called by __init__ - only needs to be called explicitly
         to reflect changes made since instantiation"""
+        # Not technically a remote command, but use hg_remote_command so that the SSH key path config option is present
         res = self.hg_remote_command("showconfig")
         cfg = {}
         for row in res.split("\n"):
@@ -658,8 +659,8 @@ class Repo(object):
         """Initialize a new repo"""
         # Call hg_version() to check that it is installed and that it works
         hg_version()
-        _hg_cmd(user, ssh_key_path, 'init', path)
-        repo = Repo(path, user, on_filesystem_modified=on_filesystem_modified)
+        _hg_cmd(user, None, 'init', path)
+        repo = Repo(path, user, ssh_key_path=ssh_key_path, on_filesystem_modified=on_filesystem_modified)
         return repo
 
     @staticmethod
@@ -676,7 +677,7 @@ class Repo(object):
         else:
             os.makedirs(path)
         _hg_cmd(user, ssh_key_path, 'clone', remote_uri, path)
-        repo = Repo(path, user, on_filesystem_modified=on_filesystem_modified)
+        repo = Repo(path, user, ssh_key_path=ssh_key_path, on_filesystem_modified=on_filesystem_modified)
         return repo
 
 
