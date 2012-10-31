@@ -452,9 +452,12 @@ class Repo(object):
         res = self.hg_command(self._heads_handler, "heads","--template", "{node}\n")
         return [head for head in res.split("\n") if head]
 
-    def hg_merge(self, reference, tool=None):
+    def hg_merge(self, reference=None, tool=None):
         """Merge reference to current"""
-        cmd = ['merge', reference]
+        cmd = ['merge']
+        if reference is not None:
+            cmd.append('-r')
+            cmd.append(reference)
         if tool is not None:
             cmd.append('--tool')
             cmd.append(tool)
