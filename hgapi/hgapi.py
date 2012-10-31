@@ -69,14 +69,65 @@ MERGETOOL_INTERNAL_OTHER = 'internal:other'
 MERGETOOL_INTERNAL_PROMPT = 'internal:prompt'
 
 
-class HGError (Exception):
+class HGBaseError (Exception):
     pass
 
-class HGCannotLaunchError (HGError):
+class HGError (HGBaseError):
     pass
 
-class HGExtensionDisabledError (HGError):
+class HGCannotLaunchError (HGBaseError):
     pass
+
+class HGExtensionDisabledError (HGBaseError):
+    pass
+
+class HGPushNothingToPushError (HGBaseError):
+    pass
+
+class HGRemoveWarning (HGBaseError):
+    pass
+
+class HGUnresolvedFiles (HGBaseError):
+    pass
+
+class HGHeadsNoHeads (HGBaseError):
+    pass
+
+class HGResolveFailed (HGBaseError):
+    pass
+
+class HGCommitNoChanges (HGBaseError):
+    pass
+
+class HGRebaseNothingToRebase (HGBaseError):
+    pass
+
+
+
+
+
+class _ReturnCodeHandler (object):
+    def __init__(self):
+        self.__exc_type_map = {}
+
+
+    def map_returncode_to_exception(self, returncode, exc_type):
+        x = _ReturnCodeHandler()
+        x.__exc_type_map.update(self.__exc_type_map)
+        x.__exc_type_map[returncode] = exc_type
+        return x
+
+
+    def _handle_return_code(self, cmd, err, out, returncode):
+        exc_type = self.__exc_type_map.get(returncode, HGError)
+        raise exc_type("Error running %s:\n\tErr: %s\n\tOut: %s\n\tExit: %s"
+                      % (' '.join(cmd),err,out,returncode))
+
+
+_default_return_code_handler = _ReturnCodeHandler()
+
+
+
 
 
 def _hg_cmd(username, ssh_key_path, *args):
@@ -88,8 +139,7 @@ def _hg_cmd(username, ssh_key_path, *args):
     out, err = [x.decode("utf-8") for x in  proc.communicate()]
 
     if proc.returncode:
-        raise HGError("Error running %s:\n\tErr: %s\n\tOut: %s\n\tExit: %s"
-        % (' '.join(cmd),err,out,proc.returncode))
+        _default_return_code_handler._handle_return_code(cmd, err, out, proc.returncode)
     return out
 
 
@@ -293,25 +343,29 @@ class Repo(object):
             return self.revisions(":".join([str(x)for x in (rev.start, rev.stop)]))
         return self.revision(rev)
 
-    def hg_command(self, *args):
+    def hg_command(self, return_code_handler, *args):
         """Run a hg command in path and return the result.
         Throws on error."""
+        assert return_code_handler is None  or  isinstance(return_code_handler, _ReturnCodeHandler)
         cmd = ["hg", "--cwd", self.path, "--encoding", "UTF-8"] + list(args)
         proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
 
         out, err = [x.decode("utf-8") for x in  proc.communicate()]
 
         if proc.returncode:
+            if return_code_handler is not None:
+                return_code_handler._handle_return_code(cmd, err, out, proc.returncode)
+            else:
+                _default_return_code_handler._handle_return_code(cmd, err, out, proc.returncode)
             raise HGError("Error running %s:\n\tErr: %s\n\tOut: %s\n\tExit: %s"
-            % (' '.join(cmd),err,out,proc.returncode))
+                    % (' '.join(cmd),err,out,proc.returncode))
         return out
 
-    def hg_remote_command(self, *args):
+    def hg_remote_command(self, return_code_handler, *args):
         """Run a hg command in path and return the result.
         Throws on error.
         Adds SSH key path"""
-
-        return self.hg_command(*(_ssh_cmd_config_option(self.user, self.ssh_key_path) + list(args)))
+        return self.hg_command(return_code_handler, *(_ssh_cmd_config_option(self.user, self.ssh_key_path) + list(args)))
 
     def read_repo_config(self):
         config = ConfigParser()
@@ -360,22 +414,26 @@ class Repo(object):
 
     def hg_id(self):
         """Get the output of the hg id command (truncated node)"""
-        res = self.hg_command("id", "-i")
+        res = self.hg_command(None, "id", "-i")
         return res.strip("\n +")
         
     def hg_rev(self):
         """Get the revision number of the current revision"""
-        res = self.hg_command("id", "-n")
+        res = self.hg_command(None, "id", "-n")
         str_rev = res.strip("\n +")
         return int(str_rev)
 
     def hg_add(self, filepath):
         """Add a file to the repo"""
-        self.hg_command("add", filepath)
+        self.hg_command(None, "add", filepath)
+
+    _remove_handler = _ReturnCodeHandler().map_returncode_to_exception(1, HGRemoveWarning)
 
     def hg_remove(self, filepath):
         """Remove a file from the repo"""
-        self.hg_command("remove", filepath)
+        self.hg_command(self._remove_handler, "remove", filepath)
+
+    _unresolved_handler = _ReturnCodeHandler().map_returncode_to_exception(1, HGUnresolvedFiles)
 
     def hg_update(self, reference, clean=False):
         """Update to the revision indetified by reference"""
@@ -383,13 +441,15 @@ class Repo(object):
         if reference is not None:
             cmd.append(str(reference))
         if clean: cmd.append("--clean")
-        self.hg_command(*cmd)
+        self.hg_command(self._unresolved_handler, *cmd)
         if self.__on_filesystem_modified is not None:
             self.__on_filesystem_modified()
 
+    _heads_handler = _ReturnCodeHandler().map_returncode_to_exception(1, HGHeadsNoHeads)
+
     def hg_heads(self):
-        """Gets a list with the node id:s of all open heads"""
-        res = self.hg_command("heads","--template", "{node}\n")
+        """Gets a list with the node id's of all open heads"""
+        res = self.hg_command(self._heads_handler, "heads","--template", "{node}\n")
         return [head for head in res.split("\n") if head]
 
     def hg_merge(self, reference, tool=None):
@@ -398,9 +458,11 @@ class Repo(object):
         if tool is not None:
             cmd.append('--tool')
             cmd.append(tool)
-        self.hg_command(*cmd)
+        self.hg_command(self._unresolved_handler, *cmd)
         if self.__on_filesystem_modified is not None:
             self.__on_filesystem_modified()
+
+    _resolve_handler = _ReturnCodeHandler().map_returncode_to_exception(1, HGResolveFailed)
 
     def hg_resolve_remerge(self, tool=None, files=None):
         cmd = ['resolve']
@@ -411,7 +473,7 @@ class Repo(object):
             cmd.append('--all')
         else:
             cmd.extend(files)
-        self.hg_command(*cmd)
+        self.hg_command(self._resolve_handler, *cmd)
         if self.__on_filesystem_modified is not None:
             self.__on_filesystem_modified()
 
@@ -419,17 +481,17 @@ class Repo(object):
         cmd = ['resolve', '-m']
         if files is not None:
             cmd.extend(files)
-        self.hg_command(*cmd)
+        self.hg_command(self._resolve_handler, *cmd)
 
     def hg_resolve_mark_as_unresolved(self, files=None):
         cmd = ['resolve', '-u']
         if files is not None:
             cmd.extend(files)
-        self.hg_command(*cmd)
+        self.hg_command(self._resolve_handler, *cmd)
 
     def hg_resolve_list(self):
         cmd = ['resolve', '-l']
-        resolve_result = self.hg_command(*cmd)
+        resolve_result = self.hg_command(self._resolve_handler, *cmd)
         unresolved_list = resolve_result.strip().split("\n")
         # Create the resolve state
         state = ResolveState()
@@ -454,14 +516,21 @@ class Repo(object):
             cmd = ["revert", "--all"]
         else:
             cmd = ["revert"] + list(files)
-        self.hg_command(*cmd)
+        self.hg_command(None, *cmd)
         if self.__on_filesystem_modified is not None:
             self.__on_filesystem_modified()
 
-    def hg_node(self):
-        """Get the full node id of the current revision"""
-        res = self.hg_command("log", "-r", self.hg_id(), "--template", "{node}")
+    def hg_node(self, rev_id=None):
+        """Get the full node id of a revision
+
+        rev_id - a string identifying the revision. If None, will use the current working directory
+        """
+        if rev_id is None:
+            rev_id = self.hg_id()
+        res = self.hg_command(None, "log", "-r", rev_id, "--template", "{node}")
         return res.strip()
+
+    _commit_handler = _ReturnCodeHandler().map_returncode_to_exception(1, HGCommitNoChanges)
 
     def hg_commit(self, message, user=None, files=[], close_branch=False):
         """Commit changes to the repository."""
@@ -472,16 +541,19 @@ class Repo(object):
         # consider the files arg, committing all files instead of what
         # was passed in files kwarg
         args = [arg for arg in args if arg]
-        self.hg_command("commit", "-m", message, *args)
+        self.hg_command(self._commit_handler, "commit", "-m", message, *args)
 
     def hg_pull(self):
-        return self.hg_remote_command('pull')
+        return self.hg_remote_command(self._unresolved_handler, None, 'pull')
+
+
+    _push_handler = _ReturnCodeHandler().map_returncode_to_exception(1, HGPushNothingToPushError)
 
     def hg_push(self, force=False):
         cmd = ['push']
         if force:
             cmd.append('--force')
-        return self.hg_remote_command(*cmd)
+        return self.hg_remote_command(self._push_handler, *cmd)
 
     def hg_log(self, rev_identifier=None, limit=None, template=None, filename=None, **kwargs):
         """Get repositiory log."""
@@ -494,7 +566,7 @@ class Repo(object):
                 cmds += [key, kwargs[key]]
         if filename:
             cmds.append(filename)
-        return self.hg_command(*cmds)
+        return self.hg_command(None, *cmds)
 
     def hg_branch(self, branch_name=None):
         """ Creates a branch of branch_name isn't None
@@ -503,14 +575,16 @@ class Repo(object):
         args = []
         if branch_name:
             args.append(branch_name)
-        branch = self.hg_command("branch", *args)
+        branch = self.hg_command(None, "branch", *args)
         return branch.strip()
+
+    _rebase_handler = _ReturnCodeHandler().map_returncode_to_exception(1, HGRebaseNothingToRebase)
 
     def hg_rebase(self, source, destination):
         if not self.is_extension_enabled('rebase'):
             raise HGExtensionDisabledError, 'rebase extension is disabled'
         cmd = ['rebase', '--source', str(source), '--dest', str(destination)]
-        return self.hg_command(*cmd)
+        return self.hg_command(self._rebase_handler, *cmd)
 
     def enable_rebase(self):
         self.enable_extension('rebase')
@@ -522,7 +596,7 @@ class Repo(object):
             cmd.append('--active')
         if show_closed:
             cmd.append('--closed')
-        branches = self.hg_command(*cmd)
+        branches = self.hg_command(None, *cmd)
         branch_list = branches.strip().split("\n")
         values = []
         for branch in branch_list:
@@ -552,7 +626,7 @@ class Repo(object):
         If empty is set to non-False value, don't add empty lists
         """
         cmds = ['status']
-        out = self.hg_command(*cmds).strip()
+        out = self.hg_command(None, *cmds).strip()
         #default empty set
         status = Status()
         if not out: return status
@@ -585,14 +659,14 @@ class Repo(object):
 
     def hg_paths(self):
         """Returns aliases for remote repositories"""
-        out = self.hg_command('paths')
+        out = self.hg_command(None, 'paths')
         lines = [l.strip()   for l in out.split('\n')]
         pairs = [l.split('=')   for l in lines   if l != '']
         return {a.strip() : b.strip()   for a, b in pairs}
 
     def hg_path(self, name):
         """Returns the alias for the given name"""
-        out = self.hg_command('paths', name)
+        out = self.hg_command(None, 'paths', name)
         out = out.strip()
         return out   if out != ''   else None
 
@@ -601,8 +675,9 @@ class Repo(object):
         """Read the configuration as seen with 'hg showconfig'
         Is called by __init__ - only needs to be called explicitly
         to reflect changes made since instantiation"""
+
         # Not technically a remote command, but use hg_remote_command so that the SSH key path config option is present
-        res = self.hg_remote_command("showconfig")
+        res = self.hg_remote_command(None, "showconfig")
         cfg = {}
         for row in res.split("\n"):
             section, ign, value = row.partition("=")

@@ -35,6 +35,7 @@ class TestHgAPI(unittest.TestCase):
         hgid = self.repo.hg_id()
         self.assertEquals(-1, rev)
         self.assertEquals("000000000000", hgid)
+        self.assertRaises(hgapi.HGHeadsNoHeads, lambda: self.repo.hg_heads())
 
     def test_020_Add(self):
         with open("test/file.txt", "w") as out:
@@ -59,6 +60,9 @@ class TestHgAPI(unittest.TestCase):
         hgid2 = self.repo.hg_id()
         self.assertNotEquals(rev, rev2)
         self.assertNotEquals(hgid, hgid2)
+
+        # Try to commit with no changes
+        self.assertRaises(hgapi.HGCommitNoChanges, lambda: self.repo.hg_commit('nothing', user='test'))
 
     def test_040_Log(self):
         rev = self.repo[0]
@@ -300,7 +304,7 @@ class TestHgAPI(unittest.TestCase):
         # Switch to default branch and make changes
         self.repo.hg_update('default')
 
-        # Note teh start point
+        # Note the start point
         start = self.repo.hg_node()
 
         with open("test/file2.txt", "a+") as out:
@@ -318,7 +322,7 @@ class TestHgAPI(unittest.TestCase):
         # Switch back to the first set of changes
         self.repo.hg_update(ch1)
         # Attempt to merge in the second
-        self.assertRaises(hgapi.HGError, lambda: self.repo.hg_merge(ch2, tool=hgapi.MERGETOOL_INTERNAL_FAIL))
+        self.assertRaises(hgapi.HGUnresolvedFiles, lambda: self.repo.hg_merge(ch2, tool=hgapi.MERGETOOL_INTERNAL_FAIL))
 
         # Check that hg_resolve_list gets us the expected list of unresolved files
         self.assertEqual(hgapi.ResolveState(unresolved=[u'file2.txt']), self.repo.hg_resolve_list())
@@ -327,6 +331,9 @@ class TestHgAPI(unittest.TestCase):
         self.assertEqual(hgapi.ResolveState(resolved=[u'file2.txt']), self.repo.hg_resolve_list())
         # Try marking them as unresolved
         self.repo.hg_resolve_mark_as_unresolved()
+        self.assertEqual(hgapi.ResolveState(unresolved=[u'file2.txt']), self.repo.hg_resolve_list())
+        # Try remerging, fail
+        self.assertRaises(hgapi.HGResolveFailed, lambda: self.repo.hg_resolve_remerge(tool=hgapi.MERGETOOL_INTERNAL_FAIL))
         self.assertEqual(hgapi.ResolveState(unresolved=[u'file2.txt']), self.repo.hg_resolve_list())
         # Try remerging
         self.repo.hg_resolve_remerge(tool=hgapi.MERGETOOL_INTERNAL_LOCAL)
