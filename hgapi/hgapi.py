@@ -544,7 +544,7 @@ class Repo(object):
         self.hg_command(self._commit_handler, "commit", "-m", message, *args)
 
     def hg_pull(self):
-        return self.hg_remote_command(self._unresolved_handler, None, 'pull')
+        return self.hg_remote_command(self._unresolved_handler, 'pull')
 
 
     _push_handler = _ReturnCodeHandler().map_returncode_to_exception(1, HGPushNothingToPushError)
@@ -638,7 +638,7 @@ class Repo(object):
         return status
         
     _status_codes = {'A': 'added', 'M': 'modified', 'R': 'removed', '!': 'missing', '?': 'untracked'}
-    rev_log_tpl = '\{"node":"{node|short}","rev":"{rev}","author":"{author|urlescape}","branch":"{branches}","parents":"{parents}","date":"{date|isodate}","tags":"{tags}","desc":"{desc|urlescape}\"}\n'
+    rev_log_tpl = '\{"node":"{node}","rev":"{rev}","author":"{author|urlescape}","branch":"{branches}","parents":"{parents}","date":"{date|isodate}","tags":"{tags}","desc":"{desc|urlescape}\"}\n'
 
     def revision(self, rev_identifier):
         """Get the identified revision as a Revision object"""
