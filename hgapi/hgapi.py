@@ -3,10 +3,6 @@ from __future__ import print_function, unicode_literals, with_statement
 import sys
 from subprocess import Popen, STDOUT, PIPE
 from datetime import datetime
-try:
-    from urllib import unquote
-except: #python 3
-    from urllib.parse import unquote
 
 try:
     from ConfigParser import ConfigParser, NoOptionError
@@ -14,10 +10,23 @@ except: #python 3
     from configparser import ConfigParser, NoOptionError
 import re
 import os
+
+try:
+    from urllib import unquote
+except: #python 3
+    from urllib.parse import unquote
+
 try:
     import json #for reading logs
 except:
     import simplejson as json
+
+
+
+
+
+from revision import Revision
+from status import Status, ResolveState
 
 
 
@@ -143,177 +152,6 @@ def _hg_cmd(username, ssh_key_path, *args):
     return out
 
 
-class Revision(object):
-    """A representation of a revision.
-    Available fields are::
-
-      node, rev, author, branch, parents, date, tags, desc
-
-    A Revision object is equal to any other object with the same value for node
-    """
-    def __init__(self, json_log):
-        """Create a Revision object from a JSON representation"""
-        rev = json.loads(json_log)
-        
-        for key in rev.keys():
-            self.__setattr__(key, unquote(rev[key]))
-        self.rev = int(self.rev)
-        if not self.branch: self.branch='default'
-        if not self.parents:
-            self.parents = [int(self.rev)-1]
-        else:
-            self.parents = [int(p.split(':')[0]) for p in self.parents.split()]
-
-    def __iter__(self):
-        return self
-
-    def __eq__(self, other):
-        """Returns true if self.node == other.node"""
-        return self.node == other.node
-
-
-    @staticmethod
-    def revision_from_log(log):
-        log = log.strip()
-        if len(log) > 0:
-            return Revision(log)
-        else:
-            return None
-
-    @staticmethod
-    def revisions_from_log(log):
-        lines = log.split('\n')[:-1]
-        lines = [line.strip()   for line in lines]
-        return [Revision(line)   for line in lines   if len(line) > 0]
-
-
-
-class Status (object):
-    """A representation of a repo status.
-    Available fields are:
-    added
-    modified
-    removed
-    untracked
-    missing
-    """
-    def __init__(self, added=None, modified=None, removed=None, untracked=None, missing=None):
-        self.added = set(added)   if added is not None   else set()
-        self.modified = set(modified)   if modified is not None   else set()
-        self.removed = set(removed)   if removed is not None   else set()
-        self.untracked = set(untracked)   if untracked is not None   else set()
-        self.missing = set(missing)   if missing is not None   else set()
-
-
-    @property
-    def has_any_changes(self):
-        return len(self.added) > 0  or  len(self.modified) > 0  or  len(self.removed) > 0  or\
-               len(self.untracked) > 0  or  len(self.missing)  >  0
-
-
-    @property
-    def has_uncommitted_changes(self):
-        return len(self.added) > 0  or  len(self.modified) > 0  or  len(self.removed) > 0
-
-
-    @property
-    def has_uncommitted_changes_or_missing_files(self):
-        return len(self.added) > 0  or  len(self.modified) > 0  or  len(self.removed) > 0  or  len(self.missing)  >  0
-
-
-    @property
-    def has_added_files(self):
-        return len(self.added) > 0
-
-    @property
-    def has_modified_files(self):
-        return len(self.modified) > 0
-
-    @property
-    def has_removed_files(self):
-        return len(self.removed) > 0
-
-    @property
-    def has_untracked_files(self):
-        return len(self.untracked) > 0
-
-    @property
-    def has_missing_files(self):
-        return len(self.missing) > 0
-
-
-    def __eq__(self, other):
-        if isinstance(other, Status):
-            return self.added == other.added  and  self.modified == other.modified  and  \
-                   self.untracked == other.untracked  and  self.missing == other.missing  and  \
-                   self.removed == other.removed
-        else:
-            return NotImplemented
-
-
-    def __ne__(self, other):
-        if isinstance(other, Status):
-            return self.added != other.added  or  self.modified != other.modified  or\
-                   self.untracked != other.untracked  or  self.missing != other.missing  or\
-                   self.removed != other.removed
-        else:
-            return NotImplemented
-
-
-    def __repr__(self):
-        return 'Status(added={0}, modified={1}, removed={2}, untracked={3}, missing={4})'.format(repr(self.added),
-            repr(self.modified), repr(self.removed), repr(self.untracked), repr(self.missing))
-
-    def __str__(self):
-        return 'Status(added={0}, modified={1}, removed={2}, untracked={3}, missing={4})'.format(self.added,
-            self.modified, self.removed, self.untracked, self.missing)
-
-
-class ResolveState (object):
-    """A representation of a repo resolve state.
-    Available fields are:
-    unresolved
-    resolved
-    """
-    def __init__(self, unresolved=None, resolved=None):
-        self.unresolved = set(unresolved)   if unresolved is not None   else set()
-        self.resolved = set(resolved)   if resolved is not None   else set()
-
-
-    @property
-    def has_any_files(self):
-        return len(self.unresolved) > 0  or  len(self.resolved) > 0
-
-    @property
-    def has_unresolved_files(self):
-        return len(self.unresolved) > 0
-
-    @property
-    def has_resolved_files(self):
-        return len(self.resolved) > 0
-
-
-    def __eq__(self, other):
-        if isinstance(other, ResolveState):
-            return self.unresolved == other.unresolved  and  self.resolved == other.resolved
-        else:
-            return NotImplemented
-
-
-    def __ne__(self, other):
-        if isinstance(other, ResolveState):
-            return self.unresolved != other.unresolved  or  self.resolved != other.resolved
-        else:
-            return NotImplemented
-
-
-    def __repr__(self):
-        return 'ResolveState(unresolved={0}, resolved={1})'.format(repr(self.unresolved), repr(self.resolved))
-
-    def __str__(self):
-        return 'ResolveState(unresolved={0}, resolved={1})'.format(self.unresolved, self.resolved)
-
-
 class Repo(object):
     __user_cfg_mod_date = None
 
@@ -332,6 +170,9 @@ class Repo(object):
         self.hg_status()
         self.__extensions = set()
         self.__refresh_extensions()
+
+        self.__revisions_by_index = []
+
  
     def __getitem__(self, rev=slice(0, 'tip')):
         """Get a Revision object for the revision identifed by rev
@@ -367,7 +208,12 @@ class Repo(object):
         Adds SSH key path"""
         return self.hg_command(return_code_handler, *(_ssh_cmd_config_option(self.user, self.ssh_key_path) + list(args)))
 
+
+
+
+
     def read_repo_config(self):
+        """Read the repo configuration and return a ConfigParser object"""
         config = ConfigParser()
         config_path = os.path.join(self.path, '.hg', 'hgrc')
         if os.path.exists(config_path):
@@ -375,15 +221,18 @@ class Repo(object):
         return config
 
     def write_repo_config(self, config):
+        """Write the repo configuration in the form of a ConfigParser object"""
         with open(os.path.join(self.path, '.hg', 'hgrc'), 'w') as f:
             config.write(f)
         self.__cfg = None
 
     def is_extension_enabled(self, extension_name):
+        """Determine if a named HG extension is enabled"""
         self.__refresh_extensions()
         return extension_name in self.__extensions
 
     def enable_extension(self, extension_name):
+        """Enable a named HG extension"""
         config = self.read_repo_config()
         if not config.has_section('extensions'):
             config.add_section('extensions')
@@ -394,6 +243,7 @@ class Repo(object):
 
     @staticmethod
     def read_user_config():
+        """Read the user HG configuration, returns a ConfigParser object"""
         config = ConfigParser()
         config_path = os.path.expanduser(os.path.join('~', '.hgrc'))
         if os.path.exists(config_path):
@@ -402,6 +252,7 @@ class Repo(object):
 
     @staticmethod
     def write_user_config(config):
+        """Write the user HG configuration, in the form of a ConfigParser"""
         with open(os.path.expanduser(os.path.join('~', '.hgrc')), 'w') as f:
             config.write(f)
         Repo.__user_cfg_mod_date = datetime.now()
@@ -413,7 +264,7 @@ class Repo(object):
 
 
     def hg_id(self):
-        """Get the output of the hg id command (truncated node)"""
+        """Get the output of the hg id command"""
         res = self.hg_command(None, "id", "-i")
         return res.strip("\n +")
         
@@ -422,6 +273,143 @@ class Repo(object):
         res = self.hg_command(None, "id", "-n")
         str_rev = res.strip("\n +")
         return int(str_rev)
+
+    def hg_node(self, rev_id=None):
+        """Get the full node id of a revision
+
+        rev_id - a string identifying the revision. If None, will use the current working directory
+        """
+        if rev_id is None:
+            rev_id = self.hg_id()
+        res = self.hg_command(None, "log", "-r", rev_id, "--template", "{node}")
+        return res.strip()
+
+
+
+
+    def hg_log(self, rev_identifier=None, limit=None, template=None, filename=None, **kwargs):
+        """Get repositiory log."""
+        cmds = ["log"]
+        if rev_identifier: cmds += ['-r', str(rev_identifier)]
+        if limit: cmds += ['-l', str(limit)]
+        if template: cmds += ['--template', str(template)]
+        if kwargs:
+            for key in kwargs:
+                cmds += [key, kwargs[key]]
+        if filename:
+            cmds.append(filename)
+        return self.hg_command(None, *cmds)
+
+
+
+    def hg_status(self):
+        """Get repository status.
+        Returns a dict containing a *change char* -> *file list* mapping, where
+        change char is in::
+
+         A, M, R, !, ?
+
+        Example - added one.txt, modified a_folder/two.txt and three.txt::
+
+         {'A': ['one.txt'], 'M': ['a_folder/two.txt', 'three.txt'],
+         '!': [], '?': [], 'R': []}
+
+        If empty is set to non-False value, don't add empty lists
+        """
+        cmds = ['status']
+        out = self.hg_command(None, *cmds).strip()
+        #default empty set
+        status = Status()
+        if not out: return status
+        lines = out.split("\n")
+        status_split = re.compile("^(.) (.*)$")
+
+        for change, path in [status_split.match(x).groups() for x in lines]:
+            getattr(status, self._status_codes[change]).add(path)
+        return status
+
+    _status_codes = {'A': 'added', 'M': 'modified', 'R': 'removed', '!': 'missing', '?': 'untracked'}
+    rev_log_tpl = '\{"node":"{node}","rev":"{rev}","author":"{author|urlescape}","branch":"{branches}","parents":"{parents}","date":"{date|isodate}","tags":"{tags}","desc":"{desc|urlescape}\"}\n'
+
+
+
+    @staticmethod
+    def __revision_from_json(json_rev):
+        """Create a Revision object from a JSON representation"""
+        j = json.loads(json_rev)
+        j = {key : unquote(value)   for key, value in j.items()}
+        rev = int(j['rev'])
+        branch = j['branch']
+        branch = branch   if branch   else 'default'
+        jparents = j['parents']
+        if not jparents:
+            parents = [rev-1]
+        else:
+            parents = [int(p.split(':')[0])   for p in jparents.split()]
+        return Revision(j['node'], rev, j['author'], branch, parents, j['date'], j['tags'], j['desc'])
+
+
+
+    @staticmethod
+    def __revision_from_log(log):
+        log = log.strip()
+        if len(log) > 0:
+            return Repo.__revision_from_json(log)
+        else:
+            return None
+
+    @staticmethod
+    def __revisions_from_log(log):
+        lines = log.split('\n')[:-1]
+        lines = [line.strip()   for line in lines]
+        return [Repo.__revision_from_json(line)   for line in lines   if len(line) > 0]
+
+
+
+
+    def revision(self, rev_identifier):
+        """Get the identified revision as a Revision object"""
+        out = self.hg_log(rev_identifier=str(rev_identifier), template=self.rev_log_tpl)
+        return Repo.__revision_from_log(out)
+
+    def revisions(self, rev_identifier):
+        """Returns a list of Revision objects for the given identifier"""
+        out = self.hg_log(rev_identifier=str(rev_identifier), template=self.rev_log_tpl)
+        return Repo.__revisions_from_log(out)
+
+
+    def revisions_for(self, filename, rev_identifier=None):
+        """Returns a list of Revision objects for the given identifier"""
+        out = self.hg_log(rev_identifier=str(rev_identifier)   if rev_identifier is not None   else None, template=self.rev_log_tpl, filename=filename)
+        return Repo.__revisions_from_log(out)
+
+
+    def hg_paths(self):
+        """Returns aliases for remote repositories"""
+        out = self.hg_command(None, 'paths')
+        lines = [l.strip()   for l in out.split('\n')]
+        pairs = [l.split('=')   for l in lines   if l != '']
+        return {a.strip() : b.strip()   for a, b in pairs}
+
+    def hg_path(self, name):
+        """Returns the alias for the given name"""
+        out = self.hg_command(None, 'paths', name)
+        out = out.strip()
+        return out   if out != ''   else None
+
+
+
+
+
+    _heads_handler = _ReturnCodeHandler().map_returncode_to_exception(1, HGHeadsNoHeads)
+
+    def hg_heads(self):
+        """Gets a list with the node id's of all open heads"""
+        res = self.hg_command(self._heads_handler, "heads","--template", "{node}\n")
+        return [head for head in res.split("\n") if head]
+
+
+
 
     def hg_add(self, filepath):
         """Add a file to the repo"""
@@ -432,6 +420,42 @@ class Repo(object):
     def hg_remove(self, filepath):
         """Remove a file from the repo"""
         self.hg_command(self._remove_handler, "remove", filepath)
+
+
+
+
+    _commit_handler = _ReturnCodeHandler().map_returncode_to_exception(1, HGCommitNoChanges)
+
+    def hg_commit(self, message, user=None, files=[], close_branch=False):
+        """Commit changes to the repository."""
+        userspec = "-u" + user if user else "-u" + self.user if self.user else ""
+        close = "--close-branch" if close_branch else ""
+        args = [close, userspec] + files
+        # don't send a "" arg for userspec or close, which HG will
+        # consider the files arg, committing all files instead of what
+        # was passed in files kwarg
+        args = [arg for arg in args if arg]
+        self.hg_command(self._commit_handler, "commit", "-m", message, *args)
+
+
+
+
+    def hg_revert(self, all=False, *files):
+        """Revert repository"""
+
+        if all:
+            cmd = ["revert", "--all"]
+        else:
+            cmd = ["revert"] + list(files)
+        self.hg_command(None, *cmd)
+        if self.__on_filesystem_modified is not None:
+            self.__on_filesystem_modified()
+
+
+
+
+
+
 
     _unresolved_handler = _ReturnCodeHandler().map_returncode_to_exception(1, HGUnresolvedFiles)
 
@@ -444,13 +468,6 @@ class Repo(object):
         self.hg_command(self._unresolved_handler, *cmd)
         if self.__on_filesystem_modified is not None:
             self.__on_filesystem_modified()
-
-    _heads_handler = _ReturnCodeHandler().map_returncode_to_exception(1, HGHeadsNoHeads)
-
-    def hg_heads(self):
-        """Gets a list with the node id's of all open heads"""
-        res = self.hg_command(self._heads_handler, "heads","--template", "{node}\n")
-        return [head for head in res.split("\n") if head]
 
     def hg_merge(self, reference=None, tool=None):
         """Merge reference to current"""
@@ -512,39 +529,7 @@ class Repo(object):
         return state
 
 
-    def hg_revert(self, all=False, *files):
-        """Revert repository"""
-        
-        if all:
-            cmd = ["revert", "--all"]
-        else:
-            cmd = ["revert"] + list(files)
-        self.hg_command(None, *cmd)
-        if self.__on_filesystem_modified is not None:
-            self.__on_filesystem_modified()
 
-    def hg_node(self, rev_id=None):
-        """Get the full node id of a revision
-
-        rev_id - a string identifying the revision. If None, will use the current working directory
-        """
-        if rev_id is None:
-            rev_id = self.hg_id()
-        res = self.hg_command(None, "log", "-r", rev_id, "--template", "{node}")
-        return res.strip()
-
-    _commit_handler = _ReturnCodeHandler().map_returncode_to_exception(1, HGCommitNoChanges)
-
-    def hg_commit(self, message, user=None, files=[], close_branch=False):
-        """Commit changes to the repository."""
-        userspec = "-u" + user if user else "-u" + self.user if self.user else ""
-        close = "--close-branch" if close_branch else ""
-        args = [close, userspec] + files
-        # don't send a "" arg for userspec or close, which HG will
-        # consider the files arg, committing all files instead of what
-        # was passed in files kwarg
-        args = [arg for arg in args if arg]
-        self.hg_command(self._commit_handler, "commit", "-m", message, *args)
 
     def hg_pull(self):
         return self.hg_remote_command(self._unresolved_handler, 'pull')
@@ -558,39 +543,7 @@ class Repo(object):
             cmd.append('--force')
         return self.hg_remote_command(self._push_handler, *cmd)
 
-    def hg_log(self, rev_identifier=None, limit=None, template=None, filename=None, **kwargs):
-        """Get repositiory log."""
-        cmds = ["log"]
-        if rev_identifier: cmds += ['-r', str(rev_identifier)]
-        if limit: cmds += ['-l', str(limit)]
-        if template: cmds += ['--template', str(template)]
-        if kwargs:
-            for key in kwargs:
-                cmds += [key, kwargs[key]]
-        if filename:
-            cmds.append(filename)
-        return self.hg_command(None, *cmds)
 
-    def hg_branch(self, branch_name=None):
-        """ Creates a branch of branch_name isn't None
-            If not, returns the current branch name.
-        """
-        args = []
-        if branch_name:
-            args.append(branch_name)
-        branch = self.hg_command(None, "branch", *args)
-        return branch.strip()
-
-    _rebase_handler = _ReturnCodeHandler().map_returncode_to_exception(1, HGRebaseNothingToRebase)
-
-    def hg_rebase(self, source, destination):
-        if not self.is_extension_enabled('rebase'):
-            raise HGExtensionDisabledError, 'rebase extension is disabled'
-        cmd = ['rebase', '--source', str(source), '--dest', str(destination)]
-        return self.hg_command(self._rebase_handler, *cmd)
-
-    def enable_rebase(self):
-        self.enable_extension('rebase')
 
     def get_branches(self, active_only=False, show_closed=False):
         """ Returns a list of branches from the repo, including versions """
@@ -614,66 +567,37 @@ class Repo(object):
     def get_branch_names(self, active_only=False, show_closed=False):
         return [branch['name']   for branch in self.get_branches(active_only=active_only, show_closed=show_closed)]
 
-    def hg_status(self):
-        """Get repository status.
-        Returns a dict containing a *change char* -> *file list* mapping, where 
-        change char is in::
 
-         A, M, R, !, ?
 
-        Example - added one.txt, modified a_folder/two.txt and three.txt::
 
-         {'A': ['one.txt'], 'M': ['a_folder/two.txt', 'three.txt'],
-         '!': [], '?': [], 'R': []}
-
-        If empty is set to non-False value, don't add empty lists
+    def hg_branch(self, branch_name=None):
+        """ Creates a branch of branch_name isn't None
+            If not, returns the current branch name.
         """
-        cmds = ['status']
-        out = self.hg_command(None, *cmds).strip()
-        #default empty set
-        status = Status()
-        if not out: return status
-        lines = out.split("\n")
-        status_split = re.compile("^(.) (.*)$")
+        args = []
+        if branch_name:
+            args.append(branch_name)
+        branch = self.hg_command(None, "branch", *args)
+        return branch.strip()
 
-        for change, path in [status_split.match(x).groups() for x in lines]:
-            getattr(status, self._status_codes[change]).add(path)
-        return status
-        
-    _status_codes = {'A': 'added', 'M': 'modified', 'R': 'removed', '!': 'missing', '?': 'untracked'}
-    rev_log_tpl = '\{"node":"{node}","rev":"{rev}","author":"{author|urlescape}","branch":"{branches}","parents":"{parents}","date":"{date|isodate}","tags":"{tags}","desc":"{desc|urlescape}\"}\n'
-
-    def revision(self, rev_identifier):
-        """Get the identified revision as a Revision object"""
-        out = self.hg_log(rev_identifier=str(rev_identifier), template=self.rev_log_tpl)
-        return Revision.revision_from_log(out)
-
-    def revisions(self, rev_identifier):
-        """Returns a list of Revision objects for the given identifier"""
-        out = self.hg_log(rev_identifier=str(rev_identifier), template=self.rev_log_tpl)
-        return Revision.revisions_from_log(out)
+    _rebase_handler = _ReturnCodeHandler().map_returncode_to_exception(1, HGRebaseNothingToRebase)
 
 
-    def revisions_for(self, filename, rev_identifier=None):
-        """Returns a list of Revision objects for the given identifier"""
-        out = self.hg_log(rev_identifier=str(rev_identifier)   if rev_identifier is not None   else None, template=self.rev_log_tpl, filename=filename)
-        return Revision.revisions_from_log(out)
 
 
-    def hg_paths(self):
-        """Returns aliases for remote repositories"""
-        out = self.hg_command(None, 'paths')
-        lines = [l.strip()   for l in out.split('\n')]
-        pairs = [l.split('=')   for l in lines   if l != '']
-        return {a.strip() : b.strip()   for a, b in pairs}
 
-    def hg_path(self, name):
-        """Returns the alias for the given name"""
-        out = self.hg_command(None, 'paths', name)
-        out = out.strip()
-        return out   if out != ''   else None
+    def hg_rebase(self, source, destination):
+        if not self.is_extension_enabled('rebase'):
+            raise HGExtensionDisabledError, 'rebase extension is disabled'
+        cmd = ['rebase', '--source', str(source), '--dest', str(destination)]
+        return self.hg_command(self._rebase_handler, *cmd)
 
-    
+    def enable_rebase(self):
+        self.enable_extension('rebase')
+
+
+
+
     def read_config(self):
         """Read the configuration as seen with 'hg showconfig'
         Is called by __init__ - only needs to be called explicitly
