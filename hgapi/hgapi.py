@@ -693,7 +693,7 @@ def hg_version():
     out, err = [x.decode("utf-8") for x in  proc.communicate()]
     if proc.returncode:
         raise HGCannotLaunchError, 'Cannot get hg version'
-    match = re.search('\s([\w\.\-]+?)\)$', out.split("\n")[0])
+    match = re.search('\s(([\w\.\-]+?)(\+[0-9]+)?)\)$', out.split("\n")[0])
     return match.group(1)
 
 
