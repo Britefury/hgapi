@@ -96,6 +96,9 @@ class HGPushNothingToPushError (HGBaseError):
 class HGRemoveWarning (HGBaseError):
     pass
 
+class HGMoveError (HGBaseError):
+    pass
+
 class HGUnresolvedFiles (HGBaseError):
     pass
 
@@ -420,6 +423,13 @@ class Repo(object):
     def hg_remove(self, filepath):
         """Remove a file from the repo"""
         self.hg_command(self._remove_handler, "remove", filepath)
+
+    _move_handler = _ReturnCodeHandler().map_returncode_to_exception(1, HGMoveError)
+
+    def hg_move(self, srcpath, destpath):
+        """Move/rename a file in the repo"""
+        self.hg_command(self._move_handler, "move", srcpath, destpath)
+
 
 
 

@@ -139,35 +139,46 @@ class TestHgAPI(unittest.TestCase):
         self.repo.hg_commit("}", user="},desc=\"test")
         self.assertEquals(self.repo["tip"].desc, "}")
         self.assertEquals(self.repo["tip"].author, "},desc=\"test")
-  
 
-    def test_090_ModifiedStatus(self):
+
+    def test_090_Move(self):
+        with open("test/file_to_move.txt", "w") as out:
+            out.write("Text that will be moved quite soon....")
+        self.repo.hg_add("file_to_move.txt")
+        self.repo.hg_commit(message="Added a file that is soon to be moved")
+        self.repo.hg_move("file_to_move.txt", "file_moved.txt")
+        self.repo.hg_commit(message="Moved the file")
+        self.assertFalse(os.path.exists("test/file_to_move.txt"))
+        self.assertTrue(os.path.exists("test/file_moved.txt"))
+
+
+    def test_100_ModifiedStatus(self):
         #write some more to file
         with open("test/file.txt", "a") as out:
             out.write("stuff stuff stuff")
         status = self.repo.hg_status()
         self.assertEquals(status, hgapi.Status(modified=['file.txt']))
 
-    def test_100_CleanStatus(self):
+    def test_110_CleanStatus(self):
         #commit file created in 090
         self.repo.hg_commit("Comitting changes", user="test")
         #Assert status is empty
         self.assertEquals(self.repo.hg_status(), hgapi.Status())
 
-    def test_110_UntrackedStatus(self):
+    def test_120_UntrackedStatus(self):
         #Create a new file
         with open("test/file2.txt", "w") as out:
             out.write("stuff stuff stuff")
         status = self.repo.hg_status()
         self.assertEquals(status, hgapi.Status(untracked=['file2.txt']))
 
-    def test_120_AddedStatus(self):
+    def test_130_AddedStatus(self):
         #Add file created in 110
         self.repo.hg_add("file2.txt")
         status = self.repo.hg_status()
         self.assertEquals(status, hgapi.Status(added=['file2.txt']))
 
-    def test_130_MissingStatus(self):
+    def test_140_MissingStatus(self):
         #Commit file created in 120
         self.repo.hg_commit("Added file")
         import os
@@ -175,18 +186,19 @@ class TestHgAPI(unittest.TestCase):
         status = self.repo.hg_status()
         self.assertEquals(status, hgapi.Status(missing=['file2.txt']))
 
-    def test_140_RemovedStatus(self):
+    def test_150_RemovedStatus(self):
         #Remove file from repo
         self.repo.hg_remove("file2.txt")
         status = self.repo.hg_status()
         self.assertEquals(status, hgapi.Status(removed=['file2.txt']))
 
-    def test_140_EmptyStatus(self):
+    def test_160_EmptyStatus(self):
         self.repo.hg_revert(all=True)
         status = self.repo.hg_status()
         self.assertEquals(status, hgapi.Status())
 
-    def test_150_ForkAndMerge(self):
+
+    def test_170_ForkAndMerge(self):
         #Store this version
         node = self.repo.hg_node()
 
@@ -211,7 +223,7 @@ class TestHgAPI(unittest.TestCase):
         heads = self.repo.hg_heads()
         self.assertEquals(len(heads), 1)
 
-    def test_160_CommitFiles(self):
+    def test_180_CommitFiles(self):
         with open("test/file2.txt", "w") as out:
                     out.write("newstuff")        	
         with open("test/file3.txt", "w") as out:
@@ -219,7 +231,7 @@ class TestHgAPI(unittest.TestCase):
         self.repo.hg_commit("only committing file2.txt", user="test", files=["file2.txt"])
         self.assertTrue("file3.txt" in self.repo.hg_status().modified)
         
-    def test_170_Indexing(self):
+    def test_190_Indexing(self):
         with open("test/file2.txt", "a+") as out:
             out.write("newstuff")
         self.repo.hg_commit("indexing", user="test", files=["file2.txt"])
@@ -227,17 +239,17 @@ class TestHgAPI(unittest.TestCase):
         self.assertEquals(self.repo['tip'], self.repo[self.repo.hg_rev()])
         self.assertEquals(self.repo['tip'].desc, "indexing")
         
-    def test_180_Slicing(self):
+    def test_200_Slicing(self):
         with open("test/file2.txt", "a+") as out:
             out.write("newstuff")
         self.repo.hg_commit("indexing", user="test", files=["file2.txt"])
         
         all_revs = self.repo[0:'tip']
-        self.assertEquals(len(all_revs), 12)
+        self.assertEquals(len(all_revs), 14)
         self.assertEquals(all_revs[-1].desc, all_revs[-2].desc)
         self.assertNotEquals(all_revs[-2].desc, all_revs[-3].desc)
         
-    def test_190_Branches(self):
+    def test_210_Branches(self):
         # make sure there is only one branch and it is default
         self.assertEquals(self.repo.hg_branch(), "default")
         branches = self.repo.get_branches()
@@ -265,7 +277,7 @@ class TestHgAPI(unittest.TestCase):
         branch_names = self.repo.get_branch_names()
         self.assertEquals(len(branch_names), 2)
 
-    def test_200_clone(self):
+    def test_220_clone(self):
         dirName = './testclone'
         if os.path.exists(dirName): shutil.rmtree(dirName)
         repo = hgapi.Repo.hg_clone(dirName, './test', user='testuser')
@@ -274,7 +286,7 @@ class TestHgAPI(unittest.TestCase):
         shutil.rmtree(dirName)
         self.assertFalse(os.path.exists(dirName))
 
-    def test_201_clone_dir_exists_raises(self):
+    def test_221_clone_dir_exists_raises(self):
         dirName = './testclone2'
         if os.path.exists(dirName): shutil.rmtree(dirName)
         os.makedirs(dirName)
@@ -282,7 +294,7 @@ class TestHgAPI(unittest.TestCase):
         shutil.rmtree(dirName)
         self.assertFalse(os.path.exists(dirName))
 
-    def test_202_clone_dir_exists_OK(self):
+    def test_222_clone_dir_exists_OK(self):
         dirName = './testclone2'
         if os.path.exists(dirName): shutil.rmtree(dirName)
         os.makedirs(dirName)
@@ -291,7 +303,7 @@ class TestHgAPI(unittest.TestCase):
         shutil.rmtree(dirName)
         self.assertFalse(os.path.exists(dirName))
 
-    def test_210_paths(self):
+    def test_230_paths(self):
         dirName = './testclone'
         if os.path.exists(dirName): shutil.rmtree(dirName)
         repo = hgapi.Repo.hg_clone(dirName, './test', user='testuser')
@@ -300,7 +312,7 @@ class TestHgAPI(unittest.TestCase):
         shutil.rmtree(dirName)
         self.assertFalse(os.path.exists(dirName))
 
-    def test_220_resolve(self):
+    def test_240_resolve(self):
         # Switch to default branch and make changes
         self.repo.hg_update('default')
 
@@ -344,7 +356,7 @@ class TestHgAPI(unittest.TestCase):
 
 
 
-    def test_230_repo_config(self):
+    def test_250_repo_config(self):
         config = self.repo.read_repo_config()
         self.assertFalse(config.has_option('extensions', 'rebase'))
         self.repo.enable_extension('rebase')
@@ -353,7 +365,7 @@ class TestHgAPI(unittest.TestCase):
         config.remove_option('extensions', 'rebase')
         self.repo.write_repo_config(config)
 
-    def test_240_extensions(self):
+    def test_260_extensions(self):
         self.assertFalse(self.repo.is_extension_enabled('transplant'))
         self.repo.enable_extension('transplant')
         self.assertTrue(self.repo.is_extension_enabled('transplant'))
@@ -361,7 +373,7 @@ class TestHgAPI(unittest.TestCase):
         config.remove_option('extensions', 'transplant')
         self.repo.write_repo_config(config)
 
-    def test_250_rebase(self):
+    def test_270_rebase(self):
         self.repo.hg_update('default')
 
         #Store this version
@@ -406,7 +418,7 @@ class TestHgAPI(unittest.TestCase):
         self.assertEqual(new_default_rev.parents, [default_child_rev.rev])
 
 
-    def test_260_user_config(self):
+    def test_280_user_config(self):
         # Read the config and ensure option does not exist
         config = self.repo.read_user_config()
         self.assertFalse(config.has_section('hgapi_test'))
