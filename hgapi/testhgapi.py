@@ -151,6 +151,23 @@ class TestHgAPI(unittest.TestCase):
         self.assertFalse(os.path.exists("test/file_to_move.txt"))
         self.assertTrue(os.path.exists("test/file_moved.txt"))
 
+        f = open('test/file_moved.txt')
+        contents = f.read()
+        f.close()
+        self.assertEqual(contents, "Text that will be moved quite soon....")
+
+
+    def test_091_Copy(self):
+        self.repo.hg_copy("file_moved.txt", "copy_of_file_moved.txt")
+        self.repo.hg_commit(message="copited the file")
+        self.assertTrue(os.path.exists("test/file_moved.txt"))
+        self.assertTrue(os.path.exists("test/copy_of_file_moved.txt"))
+
+        f = open('test/copy_of_file_moved.txt')
+        contents = f.read()
+        f.close()
+        self.assertEqual(contents, "Text that will be moved quite soon....")
+
 
     def test_100_ModifiedStatus(self):
         #write some more to file
@@ -245,7 +262,7 @@ class TestHgAPI(unittest.TestCase):
         self.repo.hg_commit("indexing", user="test", files=["file2.txt"])
         
         all_revs = self.repo[0:'tip']
-        self.assertEquals(len(all_revs), 14)
+        self.assertEquals(len(all_revs), 15)
         self.assertEquals(all_revs[-1].desc, all_revs[-2].desc)
         self.assertNotEquals(all_revs[-2].desc, all_revs[-3].desc)
         

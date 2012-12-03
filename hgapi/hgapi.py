@@ -99,6 +99,9 @@ class HGRemoveWarning (HGBaseError):
 class HGMoveError (HGBaseError):
     pass
 
+class HGCopyError (HGBaseError):
+    pass
+
 class HGUnresolvedFiles (HGBaseError):
     pass
 
@@ -429,6 +432,12 @@ class Repo(object):
     def hg_move(self, srcpath, destpath):
         """Move/rename a file in the repo"""
         self.hg_command(self._move_handler, "move", srcpath, destpath)
+
+    _copy_handler = _ReturnCodeHandler().map_returncode_to_exception(1, HGCopyError)
+
+    def hg_copy(self, srcpath, destpath):
+        """Copy a file in the repo"""
+        self.hg_command(self._copy_handler, "copy", srcpath, destpath)
 
 
 
