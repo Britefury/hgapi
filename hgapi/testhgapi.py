@@ -26,6 +26,13 @@ class TestHgAPI(unittest.TestCase):
         shutil.rmtree("test")
 
 
+
+    def _file_contents(self, path):
+        with open(path, 'r') as f:
+            return f.read()
+
+
+
     def test_000_Init(self):
         TestHgAPI.repo = hgapi.Repo.hg_init("./test", user=self._user)
         self.assertTrue(os.path.exists("test/.hg"))
@@ -39,7 +46,7 @@ class TestHgAPI(unittest.TestCase):
 
     def test_020_Add(self):
         with open("test/file.txt", "w") as out:
-            out.write("stuff")
+            out.write("stuff\n")
         self.repo.hg_add("file.txt")
         
     def test_030_Commit(self):
@@ -52,7 +59,7 @@ class TestHgAPI(unittest.TestCase):
 
         #write some more to file
         with open("test/file.txt", "w+") as out:
-            out.write("more stuff")
+            out.write("more stuff\n")
 
         #Commit and check that changes have been made
         self.repo.hg_commit("modifying", user="test")
@@ -84,7 +91,7 @@ class TestHgAPI(unittest.TestCase):
 
         self.repo.hg_update(0)
         with open("test/file.txt", "w+") as out:
-            out.write("even more stuff")
+            out.write("even more stuff\n")
 
         #creates new head
         self.repo.hg_commit("modifying", user="test")
@@ -133,7 +140,7 @@ class TestHgAPI(unittest.TestCase):
         the revision parsing"""
         #write some more to file
         with open("test/file.txt", "w+") as out:
-            out.write("stuff and, more stuff")
+            out.write("stuff and, more stuff\n")
 
         #Commit and check that changes have been made
         self.repo.hg_commit("}", user="},desc=\"test")
@@ -172,7 +179,7 @@ class TestHgAPI(unittest.TestCase):
     def test_100_ModifiedStatus(self):
         #write some more to file
         with open("test/file.txt", "a") as out:
-            out.write("stuff stuff stuff")
+            out.write("stuff stuff stuff\n")
         status = self.repo.hg_status()
         self.assertEquals(status, hgapi.Status(modified=['file.txt']))
 
@@ -373,7 +380,66 @@ class TestHgAPI(unittest.TestCase):
 
 
 
-    def test_250_repo_config(self):
+    def test_250_custom_merge(self):
+        # Switch to default branch and make changes
+        self.repo.hg_update('default')
+
+        # Note the start point
+        start = self.repo.hg_node()
+
+        with open("test/file3.txt", "a+") as out:
+            out.write("resolve_stuff1")
+        self.repo.hg_commit('First change to file3')
+        ch1 = self.repo.hg_node()
+
+        # Switch to default branch and make different changes
+        self.repo.hg_update(start)
+        with open("test/file3.txt", "a+") as out:
+            out.write("resolve_stuff2")
+        self.repo.hg_commit('Different change to file3')
+        ch2 = self.repo.hg_node()
+
+        # Switch back to the first set of changes
+        self.repo.hg_update(ch1)
+        # Attempt to merge in the second
+        merge_state = self.repo.hg_merge_custom(ch2)
+
+        # There should be one unresolved file
+        self.assertEqual({u'file3.txt'}, merge_state.unresolved)
+
+        # Check the existance of the base, local and other files
+        self.assertTrue(os.path.exists('test/file3.txt.base'))
+        self.assertTrue(os.path.exists('test/file3.txt.local'))
+        self.assertTrue(os.path.exists('test/file3.txt.other'))
+
+        # Check contents
+        self.assertEqual('this is more stuff', self._file_contents('test/file3.txt.base'))
+        self.assertEqual('this is more stuff' + 'resolve_stuff1', self._file_contents('test/file3.txt.local'))
+        self.assertEqual('this is more stuff' + 'resolve_stuff2', self._file_contents('test/file3.txt.other'))
+
+        # Resolve - take local
+        self.repo.hg_resolve_custom_take_local('file3.txt')
+
+        # Check the state obtained from hg_resolve_list
+        self.assertEqual(hgapi.ResolveState(resolved=[u'file3.txt']), self.repo.hg_resolve_list())
+
+        # Clear the merge files
+        self.repo.remove_merge_files('file3.txt')
+
+        # Check that the base, local and other files no longer exist
+        self.assertFalse(os.path.exists('test/file3.txt.base'))
+        self.assertFalse(os.path.exists('test/file3.txt.local'))
+        self.assertFalse(os.path.exists('test/file3.txt.other'))
+
+        # Check the state obtained from hg_resolve_list
+        self.assertEqual(hgapi.ResolveState(resolved=[u'file3.txt']), self.repo.hg_resolve_list())
+
+        # Commit the changes
+        self.repo.hg_commit('Custom Merge')
+
+
+
+    def test_260_repo_config(self):
         config = self.repo.read_repo_config()
         self.assertFalse(config.has_option('extensions', 'rebase'))
         self.repo.enable_extension('rebase')
@@ -382,7 +448,7 @@ class TestHgAPI(unittest.TestCase):
         config.remove_option('extensions', 'rebase')
         self.repo.write_repo_config(config)
 
-    def test_260_extensions(self):
+    def test_270_extensions(self):
         self.assertFalse(self.repo.is_extension_enabled('transplant'))
         self.repo.enable_extension('transplant')
         self.assertTrue(self.repo.is_extension_enabled('transplant'))
@@ -390,7 +456,7 @@ class TestHgAPI(unittest.TestCase):
         config.remove_option('extensions', 'transplant')
         self.repo.write_repo_config(config)
 
-    def test_270_rebase(self):
+    def test_280_rebase(self):
         self.repo.hg_update('default')
 
         #Store this version
@@ -435,7 +501,7 @@ class TestHgAPI(unittest.TestCase):
         self.assertEqual(new_default_rev.parents, [default_child_rev.rev])
 
 
-    def test_280_user_config(self):
+    def test_290_user_config(self):
         # Read the config and ensure option does not exist
         config = self.repo.read_user_config()
         self.assertFalse(config.has_section('hgapi_test'))

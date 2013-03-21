@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function, unicode_literals, with_statement
 import sys
+
 from subprocess import Popen, STDOUT, PIPE
 from datetime import datetime
 
@@ -10,6 +11,7 @@ except: #python 3
     from configparser import ConfigParser, NoOptionError
 import re
 import os
+import shutil
 
 try:
     from urllib import unquote
@@ -467,8 +469,7 @@ class Repo(object):
         else:
             cmd = ["revert"] + list(files)
         self.hg_command(None, *cmd)
-        if self.__on_filesystem_modified is not None:
-            self.__on_filesystem_modified()
+        self._notify_filesystem_modified()
 
 
 
@@ -484,9 +485,11 @@ class Repo(object):
         if reference is not None:
             cmd.append(str(reference))
         if clean: cmd.append("--clean")
-        self.hg_command(self._unresolved_handler, *cmd)
-        if self.__on_filesystem_modified is not None:
-            self.__on_filesystem_modified()
+        try:
+            self.hg_command(self._unresolved_handler, *cmd)
+        finally:
+            self._notify_filesystem_modified()
+
 
     def hg_merge(self, reference=None, tool=None):
         """Merge reference to current"""
@@ -497,9 +500,10 @@ class Repo(object):
         if tool is not None:
             cmd.append('--tool')
             cmd.append(tool)
-        self.hg_command(self._unresolved_handler, *cmd)
-        if self.__on_filesystem_modified is not None:
-            self.__on_filesystem_modified()
+        try:
+            self.hg_command(self._unresolved_handler, *cmd)
+        finally:
+            self._notify_filesystem_modified()
 
     _resolve_handler = _ReturnCodeHandler().map_returncode_to_exception(1, HGResolveFailed)
 
@@ -512,9 +516,10 @@ class Repo(object):
             cmd.append('--all')
         else:
             cmd.extend(files)
-        self.hg_command(self._resolve_handler, *cmd)
-        if self.__on_filesystem_modified is not None:
-            self.__on_filesystem_modified()
+        try:
+            self.hg_command(self._resolve_handler, *cmd)
+        finally:
+            self._notify_filesystem_modified()
 
     def hg_resolve_mark_as_resolved(self, files=None):
         cmd = ['resolve', '-m']
@@ -546,6 +551,71 @@ class Repo(object):
                 else:
                     raise ValueError, 'Unknown resolve code \'{0}\''.format(code)
         return state
+
+
+    def hg_merge_custom(self, reference=None):
+        """Merge reference to current, with custom conflict resolution
+
+        Returns a CustomMergeState that describes files that are in an unresolved state, allowing the application
+        to handle them.
+
+        Uses the HG 'internal:dump' merging tool, causing the base and derived versions of the file to be written,
+        where the application can access them.
+        """
+        try:
+            self.hg_merge(reference, MERGETOOL_INTERNAL_DUMP)
+        except HGUnresolvedFiles:
+            # We have unresolved files
+            pass
+        finally:
+            self._notify_filesystem_modified()
+        return self.hg_resolve_list()
+
+
+    def hg_resolve_custom_take_local(self, file):
+        self.__hg_resolve_custom_take(file, '.local')
+
+
+    def hg_resolve_custom_take_other(self, file):
+        self.__hg_resolve_custom_take(file, '.other')
+
+
+
+    def __hg_resolve_custom_take(self, file, suffix):
+        path = os.path.join(self.path, file)
+        merge_path = path + suffix
+        if not os.path.exists(path):
+            raise IOError, 'File \'{0}\' does not exist'.format(path)
+        if not os.path.exists(merge_path):
+            raise IOError, 'Merge file \'{0}\' does not exist'.format(merge_path)
+        shutil.copyfile(path, merge_path)
+        self.hg_resolve_mark_as_resolved([file])
+
+
+
+
+    def remove_merge_files(self, files):
+        """Remove files resulting from merging
+
+        files - a file name or a collection of filenames
+
+        For each file in the input list, the existence of .base, .local, .other and .orig files it tested.
+        If they exist, they are deleted
+        """
+        if isinstance(files, str)  or  isinstance(files, unicode):
+            files = [files]
+
+        removed = False
+
+        for file in files:
+            merge_file_paths = [os.path.join(self.path, file + suffix)   for suffix in ['.base', '.local', '.other', '.orig']]
+            for m in merge_file_paths:
+                if os.path.exists(m):
+                    os.remove(m)
+                    removed = True
+
+        if removed:
+            self._notify_filesystem_modified()
 
 
 
@@ -673,6 +743,11 @@ class Repo(object):
             return value.split(",")
         else:
             return value.split()
+
+
+    def _notify_filesystem_modified(self):
+        if self.__on_filesystem_modified is not None:
+            self.__on_filesystem_modified()
 
 
     @staticmethod
