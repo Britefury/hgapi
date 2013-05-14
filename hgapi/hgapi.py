@@ -68,11 +68,11 @@ def __platform_ssh_cmd(username, ssh_key_path):
 __hg_path = 'hg'
 
 
-def _get_hg_path():
+def get_hg_path():
     return __hg_path
 
 
-def _set_hg_path(p):
+def set_hg_path(p):
     global __hg_path
     __hg_path = p
 
@@ -164,7 +164,7 @@ _default_return_code_handler = _ReturnCodeHandler()
 def _hg_cmd(username, ssh_key_path, *args):
     """Run a hg command in path and return the result.
     Throws on error."""
-    cmd = [_get_hg_path(), "--encoding", "UTF-8"] + _ssh_cmd_config_option(username, ssh_key_path) + list(args)
+    cmd = [get_hg_path(), "--encoding", "UTF-8"] + _ssh_cmd_config_option(username, ssh_key_path) + list(args)
     proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
 
     out, err = [x.decode("utf-8") for x in  proc.communicate()]
@@ -210,7 +210,7 @@ class Repo(object):
         """Run a hg command in path and return the result.
         Throws on error."""
         assert return_code_handler is None  or  isinstance(return_code_handler, _ReturnCodeHandler)
-        cmd = [_get_hg_path(), "--cwd", self.path, "--encoding", "UTF-8"] + list(args)
+        cmd = [get_hg_path(), "--cwd", self.path, "--encoding", "UTF-8"] + list(args)
         proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
 
         out, err = [x.decode("utf-8") for x in  proc.communicate()]
@@ -795,7 +795,7 @@ class Repo(object):
 def hg_version():
     """Return version number of mercurial"""
     try:
-        proc = Popen([_get_hg_path(), "version"], stdout=PIPE, stderr=PIPE)
+        proc = Popen([get_hg_path(), "version"], stdout=PIPE, stderr=PIPE)
     except:
         raise HGCannotLaunchError, 'Cannot launch hg executable'
     out, err = [x.decode("utf-8") for x in  proc.communicate()]
