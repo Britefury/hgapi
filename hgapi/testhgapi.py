@@ -222,7 +222,7 @@ class TestHgAPI(unittest.TestCase):
         self.assertEquals(status, hgapi.Status())
 
 
-    def test_170_Revert(self):
+    def test_170_Revert_modified(self):
         # Get the contents of file.txt
         with open('test/file.txt', 'r') as f:
             original_contents = f.read()
@@ -232,6 +232,31 @@ class TestHgAPI(unittest.TestCase):
             out.write("Only one line of content\n")
 
 
+        # Get the status
+        status = self.repo.hg_status()
+        self.assertEquals(status, hgapi.Status(modified=['file.txt']))
+
+        # Get the modified contents and check
+        with open('test/file.txt', 'r') as f:
+            modified_contents = f.read()
+        self.assertEqual(modified_contents, "Only one line of content\n")
+
+        # Revert and check again
+        self.repo.hg_revert(all=True)
+
+        # Should have created file.txt.orig
+        self.assertTrue(os.path.exists('test/file.txt.orig'))
+
+        # Check the contents of file.txt
+        with open('test/file.txt', 'r') as f:
+            reverted_contents = f.read()
+        self.assertEqual(reverted_contents, original_contents)
+
+        # Remove file.txt.orig
+        os.unlink('test/file.txt.orig')
+
+
+    def test_171_Revert_added(self):
         # Add a new file
         with open("test/file_added.txt", "w") as out:
             out.write("Added content\n")
@@ -241,12 +266,7 @@ class TestHgAPI(unittest.TestCase):
 
         # Get the status
         status = self.repo.hg_status()
-        self.assertEquals(status, hgapi.Status(modified=['file.txt'], added=['file_added.txt']))
-
-        # Get the modified contents and check
-        with open('test/file.txt', 'r') as f:
-            modified_contents = f.read()
-        self.assertEqual(modified_contents, "Only one line of content\n")
+        self.assertEquals(status, hgapi.Status(added=['file_added.txt']))
 
         with open('test/file_added.txt', 'r') as f:
             new_contents = f.read()
@@ -258,10 +278,29 @@ class TestHgAPI(unittest.TestCase):
         # file_added.txt should still exist
         self.assertTrue(os.path.exists('test/file_added.txt'))
 
-        # Check the contents of file.txt
-        with open('test/file.txt', 'r') as f:
-            reverted_contents = f.read()
-        self.assertEqual(reverted_contents, original_contents)
+        os.unlink('test/file_added.txt')
+
+
+    def test_172_Revert_removed(self):
+        # Remove file.txt
+        self.repo.hg_remove("file.txt")
+
+        # file.txt should be gone
+        self.assertFalse(os.path.exists('test/file.txt'))
+
+        # Check the status
+        status = self.repo.hg_status()
+        self.assertEquals(status, hgapi.Status(removed=['file.txt']))
+
+        # Revert and check again
+        self.repo.hg_revert(all=True)
+
+        # file.txt should be back
+        self.assertTrue(os.path.exists('test/file.txt'))
+
+        # Check the status
+        status = self.repo.hg_status()
+        self.assertEquals(status, hgapi.Status())
 
 
 
