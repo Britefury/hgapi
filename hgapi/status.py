@@ -15,39 +15,31 @@ class Status (object):
         self.missing = set(missing)   if missing is not None   else set()
 
 
-    @property
     def has_any_changes(self):
         return len(self.added) > 0  or  len(self.modified) > 0  or  len(self.removed) > 0  or\
                len(self.untracked) > 0  or  len(self.missing)  >  0
 
 
-    @property
     def has_uncommitted_changes(self):
         return len(self.added) > 0  or  len(self.modified) > 0  or  len(self.removed) > 0
 
 
-    @property
     def has_uncommitted_changes_or_missing_files(self):
         return len(self.added) > 0  or  len(self.modified) > 0  or  len(self.removed) > 0  or  len(self.missing)  >  0
 
 
-    @property
     def has_added_files(self):
         return len(self.added) > 0
 
-    @property
     def has_modified_files(self):
         return len(self.modified) > 0
 
-    @property
     def has_removed_files(self):
         return len(self.removed) > 0
 
-    @property
     def has_untracked_files(self):
         return len(self.untracked) > 0
 
-    @property
     def has_missing_files(self):
         return len(self.missing) > 0
 
