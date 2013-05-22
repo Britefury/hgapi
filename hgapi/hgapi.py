@@ -175,9 +175,12 @@ def _hg_cmd(username, ssh_key_path, *args):
 
 
 class Repo(object):
+    """
+    A representation of a Mercurial repository
+    """
+
     __user_cfg_mod_date = None
 
-    """A representation of a Mercurial repository"""
     def __init__(self, path, user=None, ssh_key_path=None, on_filesystem_modified=None):
         """Create a Repo object from the repository at path"""
         # Call hg_version() to check that it is installed and that it works
