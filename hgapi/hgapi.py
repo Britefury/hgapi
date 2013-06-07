@@ -161,10 +161,11 @@ _default_return_code_handler = _ReturnCodeHandler()
 
 
 
-def _hg_cmd(username, ssh_key_path, *args):
+def _hg_cmd(username, ssh_key_path, insecure, *args):
     """Run a hg command in path and return the result.
     Throws on error."""
-    cmd = [get_hg_path(), "--encoding", "UTF-8"] + _ssh_cmd_config_option(username, ssh_key_path) + list(args)
+    insecure_option = ['--insecure']   if insecure   else []
+    cmd = [get_hg_path(), "--encoding", "UTF-8"] + _ssh_cmd_config_option(username, ssh_key_path) + insecure_option + list(args)
     proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
 
     out, err = [x.decode("utf-8") for x in  proc.communicate()]
@@ -181,7 +182,7 @@ class Repo(object):
 
     __user_cfg_mod_date = None
 
-    def __init__(self, path, user=None, ssh_key_path=None, on_filesystem_modified=None):
+    def __init__(self, path, user=None, ssh_key_path=None, insecure=False, on_filesystem_modified=None):
         """Create a Repo object from the repository at path"""
         # Call hg_version() to check that it is installed and that it works
         hg_version()
@@ -190,6 +191,7 @@ class Repo(object):
         self.__cfg = None
         self.user = user
         self.ssh_key_path = ssh_key_path
+        self.insecure = insecure
         self.__on_filesystem_modified = on_filesystem_modified
         # Call hg_status to check that the repo is valid
         self.hg_status()
@@ -231,7 +233,8 @@ class Repo(object):
         """Run a hg command in path and return the result.
         Throws on error.
         Adds SSH key path"""
-        return self.hg_command(return_code_handler, *(_ssh_cmd_config_option(self.user, self.ssh_key_path) + list(args)))
+        insecure_option = ['--insecure']   if self.insecure   else []
+        return self.hg_command(return_code_handler, *(_ssh_cmd_config_option(self.user, self.ssh_key_path) + insecure_option + list(args)))
 
 
 
@@ -768,16 +771,16 @@ class Repo(object):
 
 
     @staticmethod
-    def hg_init(path, user=None, ssh_key_path=None, on_filesystem_modified=None):
+    def hg_init(path, user=None, ssh_key_path=None, insecure=False, on_filesystem_modified=None):
         """Initialize a new repo"""
         # Call hg_version() to check that it is installed and that it works
         hg_version()
-        _hg_cmd(user, None, 'init', path)
-        repo = Repo(path, user, ssh_key_path=ssh_key_path, on_filesystem_modified=on_filesystem_modified)
+        _hg_cmd(user, None, insecure, 'init', path)
+        repo = Repo(path, user, ssh_key_path=ssh_key_path, insecure=insecure, on_filesystem_modified=on_filesystem_modified)
         return repo
 
     @staticmethod
-    def hg_clone(path, remote_uri, user=None, ssh_key_path=None, on_filesystem_modified=None, ok_if_local_dir_exists=False):
+    def hg_clone(path, remote_uri, user=None, ssh_key_path=None, insecure=False, on_filesystem_modified=None, ok_if_local_dir_exists=False):
         """Clone an existing repo"""
         # Call hg_version() to check that it is installed and that it works
         hg_version()
@@ -789,8 +792,8 @@ class Repo(object):
                 raise HGError, 'Cannot clone into \'{0}\'; it is not a directory'.format(path)
         else:
             os.makedirs(path)
-        _hg_cmd(user, ssh_key_path, 'clone', remote_uri, path)
-        repo = Repo(path, user, ssh_key_path=ssh_key_path, on_filesystem_modified=on_filesystem_modified)
+        _hg_cmd(user, ssh_key_path, insecure, 'clone', remote_uri, path)
+        repo = Repo(path, user, ssh_key_path=ssh_key_path, insecure=insecure, on_filesystem_modified=on_filesystem_modified)
         return repo
 
 
