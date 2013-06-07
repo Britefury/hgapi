@@ -409,6 +409,14 @@ class TestHgAPI(unittest.TestCase):
         shutil.rmtree(dirName)
         self.assertFalse(os.path.exists(dirName))
 
+    def test_233_clone_disable_host_key_checking(self):
+        dirName = './testclone2'
+        if os.path.exists(dirName): shutil.rmtree(dirName)
+        repo = hgapi.Repo.hg_clone(dirName, './test', user=self._user, disable_host_key_checking=True, ok_if_local_dir_exists=True)
+        self.assertTrue(os.path.exists(dirName))
+        shutil.rmtree(dirName)
+        self.assertFalse(os.path.exists(dirName))
+
     def test_240_paths(self):
         dirName = './testclone'
         if os.path.exists(dirName): shutil.rmtree(dirName)
