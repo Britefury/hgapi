@@ -330,21 +330,22 @@ class Repo(object):
 
 
 
-    def hg_status(self):
+    def hg_status(self, filenames=None):
         """Get repository status.
-        Returns a dict containing a *change char* -> *file list* mapping, where
-        change char is in::
-
-         A, M, R, !, ?
+        Returns a Status object. A status object has five attributes, each of which contains a set of filenames.
+        added,
+        modified,
+        removed,
+        untracked,
+        missing
 
         Example - added one.txt, modified a_folder/two.txt and three.txt::
 
-         {'A': ['one.txt'], 'M': ['a_folder/two.txt', 'three.txt'],
-         '!': [], '?': [], 'R': []}
-
-        If empty is set to non-False value, don't add empty lists
+         Status(added={'one.txt'}, modified={'a_folder/two.txt', 'three.txt'})
         """
-        cmds = ['status']
+        if filenames is None:
+            filenames = []
+        cmds = ['status'] + filenames
         out = self.hg_command(None, *cmds).strip()
         #default empty set
         status = Status()
