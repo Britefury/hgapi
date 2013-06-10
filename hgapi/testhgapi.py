@@ -222,7 +222,17 @@ class TestHgAPI(unittest.TestCase):
         self.assertEquals(status, hgapi.Status())
 
 
-    def test_170_Revert_modified(self):
+    def test_170_Remove_modified(self):
+        #write some more to file
+        with open("test/file.txt", "a") as out:
+            out.write("stuff stuff stuff\n")
+        self.assertRaises(hgapi.HGRemoveWarning, lambda: self.repo.hg_remove("file.txt"))
+        # Revert the changes
+        self.repo.hg_revert("file.txt")
+        os.remove("test/file.txt.orig")
+
+
+    def test_180_Revert_modified(self):
         # Get the contents of file.txt
         with open('test/file.txt', 'r') as f:
             original_contents = f.read()
@@ -256,7 +266,7 @@ class TestHgAPI(unittest.TestCase):
         os.unlink('test/file.txt.orig')
 
 
-    def test_171_Revert_added(self):
+    def test_181_Revert_added(self):
         # Add a new file
         with open("test/file_added.txt", "w") as out:
             out.write("Added content\n")
@@ -281,7 +291,7 @@ class TestHgAPI(unittest.TestCase):
         os.unlink('test/file_added.txt')
 
 
-    def test_172_Revert_removed(self):
+    def test_182_Revert_removed(self):
         # Remove file.txt
         self.repo.hg_remove("file.txt")
 
@@ -304,7 +314,7 @@ class TestHgAPI(unittest.TestCase):
 
 
 
-    def test_180_ForkAndMerge(self):
+    def test_190_ForkAndMerge(self):
         #Store this version
         node = self.repo.hg_node()
 
@@ -329,7 +339,7 @@ class TestHgAPI(unittest.TestCase):
         heads = self.repo.hg_heads()
         self.assertEquals(len(heads), 1)
 
-    def test_190_CommitFiles(self):
+    def test_200_CommitFiles(self):
         with open("test/file2.txt", "w") as out:
                     out.write("newstuff")        	
         with open("test/file3.txt", "w") as out:
@@ -337,7 +347,7 @@ class TestHgAPI(unittest.TestCase):
         self.repo.hg_commit("only committing file2.txt", user="test", files=["file2.txt"])
         self.assertTrue("file3.txt" in self.repo.hg_status().modified)
         
-    def test_200_Indexing(self):
+    def test_210_Indexing(self):
         with open("test/file2.txt", "a+") as out:
             out.write("newstuff")
         self.repo.hg_commit("indexing", user="test", files=["file2.txt"])
@@ -345,7 +355,7 @@ class TestHgAPI(unittest.TestCase):
         self.assertEquals(self.repo['tip'], self.repo[self.repo.hg_rev()])
         self.assertEquals(self.repo['tip'].desc, "indexing")
         
-    def test_210_Slicing(self):
+    def test_220_Slicing(self):
         with open("test/file2.txt", "a+") as out:
             out.write("newstuff")
         self.repo.hg_commit("indexing", user="test", files=["file2.txt"])
@@ -355,7 +365,7 @@ class TestHgAPI(unittest.TestCase):
         self.assertEquals(all_revs[-1].desc, all_revs[-2].desc)
         self.assertNotEquals(all_revs[-2].desc, all_revs[-3].desc)
         
-    def test_220_Branches(self):
+    def test_230_Branches(self):
         # make sure there is only one branch and it is default
         self.assertEquals(self.repo.hg_branch(), "default")
         branches = self.repo.get_branches()
@@ -383,7 +393,7 @@ class TestHgAPI(unittest.TestCase):
         branch_names = self.repo.get_branch_names()
         self.assertEquals(len(branch_names), 2)
 
-    def test_230_clone(self):
+    def test_240_clone(self):
         dirName = './testclone'
         if os.path.exists(dirName): shutil.rmtree(dirName)
         repo = hgapi.Repo.hg_clone(dirName, './test', user='testuser')
@@ -392,7 +402,7 @@ class TestHgAPI(unittest.TestCase):
         shutil.rmtree(dirName)
         self.assertFalse(os.path.exists(dirName))
 
-    def test_231_clone_dir_exists_raises(self):
+    def test_241_clone_dir_exists_raises(self):
         dirName = './testclone2'
         if os.path.exists(dirName): shutil.rmtree(dirName)
         os.makedirs(dirName)
@@ -400,7 +410,7 @@ class TestHgAPI(unittest.TestCase):
         shutil.rmtree(dirName)
         self.assertFalse(os.path.exists(dirName))
 
-    def test_232_clone_dir_exists_OK(self):
+    def test_242_clone_dir_exists_OK(self):
         dirName = './testclone2'
         if os.path.exists(dirName): shutil.rmtree(dirName)
         os.makedirs(dirName)
@@ -409,7 +419,7 @@ class TestHgAPI(unittest.TestCase):
         shutil.rmtree(dirName)
         self.assertFalse(os.path.exists(dirName))
 
-    def test_233_clone_disable_host_key_checking(self):
+    def test_243_clone_disable_host_key_checking(self):
         dirName = './testclone2'
         if os.path.exists(dirName): shutil.rmtree(dirName)
         repo = hgapi.Repo.hg_clone(dirName, './test', user=self._user, disable_host_key_checking=True, ok_if_local_dir_exists=True)
@@ -417,7 +427,7 @@ class TestHgAPI(unittest.TestCase):
         shutil.rmtree(dirName)
         self.assertFalse(os.path.exists(dirName))
 
-    def test_240_paths(self):
+    def test_250_paths(self):
         dirName = './testclone'
         if os.path.exists(dirName): shutil.rmtree(dirName)
         repo = hgapi.Repo.hg_clone(dirName, './test', user='testuser')
@@ -426,7 +436,7 @@ class TestHgAPI(unittest.TestCase):
         shutil.rmtree(dirName)
         self.assertFalse(os.path.exists(dirName))
 
-    def test_250_resolve(self):
+    def test_260_resolve(self):
         # Switch to default branch and make changes
         self.repo.hg_update('default')
 
@@ -470,7 +480,7 @@ class TestHgAPI(unittest.TestCase):
 
 
 
-    def test_260_custom_merge(self):
+    def test_270_custom_merge(self):
         # Switch to default branch and make changes
         self.repo.hg_update('default')
 
@@ -529,7 +539,7 @@ class TestHgAPI(unittest.TestCase):
 
 
 
-    def test_270_repo_config(self):
+    def test_280_repo_config(self):
         config = self.repo.read_repo_config()
         self.assertFalse(config.has_option('extensions', 'rebase'))
         self.repo.enable_extension('rebase')
@@ -538,7 +548,7 @@ class TestHgAPI(unittest.TestCase):
         config.remove_option('extensions', 'rebase')
         self.repo.write_repo_config(config)
 
-    def test_280_extensions(self):
+    def test_290_extensions(self):
         self.assertFalse(self.repo.is_extension_enabled('transplant'))
         self.repo.enable_extension('transplant')
         self.assertTrue(self.repo.is_extension_enabled('transplant'))
@@ -546,7 +556,7 @@ class TestHgAPI(unittest.TestCase):
         config.remove_option('extensions', 'transplant')
         self.repo.write_repo_config(config)
 
-    def test_290_rebase(self):
+    def test_300_rebase(self):
         self.repo.hg_update('default')
 
         #Store this version
@@ -591,7 +601,7 @@ class TestHgAPI(unittest.TestCase):
         self.assertEqual(new_default_rev.parents, [default_child_rev.rev])
 
 
-    def test_300_user_config(self):
+    def test_310_user_config(self):
         # Read the config and ensure option does not exist
         config = self.repo.read_user_config()
         self.assertFalse(config.has_section('hgapi_test'))
