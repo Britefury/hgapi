@@ -1,7 +1,10 @@
 from __future__ import with_statement
 import unittest, doctest
 import os, shutil, os.path
-import hgapi 
+import tempfile
+import zipfile
+import hgapi
+import tarfile
 
 class TestHgAPI(unittest.TestCase):
     """Tests for hgapi.py
@@ -166,7 +169,7 @@ class TestHgAPI(unittest.TestCase):
 
     def test_091_Copy(self):
         self.repo.hg_copy("file_moved.txt", "copy_of_file_moved.txt")
-        self.repo.hg_commit(message="copited the file")
+        self.repo.hg_commit(message="copied the file")
         self.assertTrue(os.path.exists("test/file_moved.txt"))
         self.assertTrue(os.path.exists("test/copy_of_file_moved.txt"))
 
@@ -174,6 +177,8 @@ class TestHgAPI(unittest.TestCase):
         contents = f.read()
         f.close()
         self.assertEqual(contents, "Text that will be moved quite soon....")
+
+        TestHgAPI.__rev_after_test_copy = self.repo.hg_rev()
 
 
     def test_100_ModifiedStatus(self):
@@ -628,6 +633,19 @@ class TestHgAPI(unittest.TestCase):
         self.assertFalse(config.has_option('hgapi_test', 'test_option'))
 
 
+    def test_320_archive(self):
+        out_file, out_filename = tempfile.mkstemp(suffix='.zip')
+        os.close(out_file)
+
+        self.repo.hg_archive(out_filename, revision=TestHgAPI.__rev_after_test_copy, archive_type=hgapi.Repo.ARCHIVETYPE_ZIP, prefix='ark')
+
+        zip_archive = zipfile.ZipFile(out_filename)
+        names = set(zip_archive.namelist())
+        zip_archive.close()
+
+        self.assertEqual(names, {'ark/file.txt', 'ark/file_moved.txt', 'ark/copy_of_file_moved.txt', 'ark/.hg_archival.txt'})
+
+        os.remove(out_filename)
 
 
 

@@ -690,11 +690,42 @@ class Repo(object):
         branch = self.hg_command(None, "branch", *args)
         return branch.strip()
 
+
+
+    ARCHIVETYPE_FILES = 'files'
+    ARCHIVETYPE_TAR = 'tar'
+    ARCHIVETYPE_TAR_BZIP2 = 'tbz2'
+    ARCHIVETYPE_TAR_GZ = 'tgz'
+    ARCHIVETYPE_UNCOMPRESSED_ZIP = 'uzip'
+    ARCHIVETYPE_ZIP = 'zip'
+
+    def hg_archive(self, dest, revision=None, archive_type=None, prefix=None):
+        """Create an archive of the repository
+
+        dest - the folder into which the archive is to be placed
+        revision (optional) - the revision to use
+        archive_type - the type of archive
+            use: ARCHIVETYPE_FILES, ARCHIVETYPE_TAR, ARCHIVETYPE_TAR_BZIP2, ARCHIVETYPE_TAR_GZ, ARCHIVETYPE_UNCOMPRESSED_ZIP, ARCHIVETYPE_ZIP
+        prefix - the directory prefix
+
+        returns - hg's standard output
+
+        For more information, at the command line, invoke:
+            > hg help archive
+        """
+        cmd = ['archive']
+        if revision is not None:
+            cmd.extend(['--rev', str(revision)])
+        if archive_type is not None:
+            cmd.extend(['--type', str(archive_type)])
+        if prefix is not None:
+            cmd.extend(['--prefix', str(prefix)])
+        cmd.append(str(dest))
+        return self.hg_command(None, *cmd)
+
+
+
     _rebase_handler = _ReturnCodeHandler().map_returncode_to_exception(1, HGRebaseNothingToRebase)
-
-
-
-
 
     def hg_rebase(self, source, destination):
         if not self.is_extension_enabled('rebase'):
