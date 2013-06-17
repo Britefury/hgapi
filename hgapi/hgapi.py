@@ -135,6 +135,12 @@ class HGCommitNoChanges (HGBaseError):
 class HGRebaseNothingToRebase (HGBaseError):
     pass
 
+class HGCloneRepoNotFound (HGBaseError):
+    pass
+
+class HGRepoUnrelated (HGBaseError):
+    pass
+
 
 
 
@@ -163,7 +169,7 @@ _default_return_code_handler = _ReturnCodeHandler()
 
 
 
-def _hg_cmd(username, ssh_key_path, disable_host_key_checking, *args):
+def _hg_cmd(return_code_handler, username, ssh_key_path, disable_host_key_checking, *args):
     """Run a hg command in path and return the result.
     Throws on error."""
     cmd = [get_hg_path(), "--encoding", "UTF-8"] + _ssh_cmd_config_option(username, ssh_key_path, disable_host_key_checking) + list(args)
@@ -172,7 +178,7 @@ def _hg_cmd(username, ssh_key_path, disable_host_key_checking, *args):
     out, err = [x.decode("utf-8") for x in  proc.communicate()]
 
     if proc.returncode:
-        _default_return_code_handler._handle_return_code(cmd, err, out, proc.returncode)
+        return_code_handler._handle_return_code(cmd, err, out, proc.returncode)
     return out
 
 
@@ -640,12 +646,13 @@ class Repo(object):
 
 
 
+    _pull_handler = _ReturnCodeHandler().map_returncode_to_exception(1, HGUnresolvedFiles).map_returncode_to_exception(255, HGRepoUnrelated)
 
     def hg_pull(self):
-        return self.hg_remote_command(self._unresolved_handler, 'pull')
+        return self.hg_remote_command(self._pull_handler, 'pull')
 
 
-    _push_handler = _ReturnCodeHandler().map_returncode_to_exception(1, HGPushNothingToPushError)
+    _push_handler = _ReturnCodeHandler().map_returncode_to_exception(1, HGPushNothingToPushError).map_returncode_to_exception(255, HGRepoUnrelated)
 
     def hg_push(self, force=False):
         cmd = ['push']
@@ -807,9 +814,12 @@ class Repo(object):
         """Initialize a new repo"""
         # Call hg_version() to check that it is installed and that it works
         hg_version()
-        _hg_cmd(user, None, disable_host_key_checking, 'init', path)
+        _hg_cmd(_default_return_code_handler, user, None, disable_host_key_checking, 'init', path)
         repo = Repo(path, user, ssh_key_path=ssh_key_path, disable_host_key_checking=disable_host_key_checking, on_filesystem_modified=on_filesystem_modified)
         return repo
+
+
+    _clone_handler = _ReturnCodeHandler().map_returncode_to_exception(255, HGCloneRepoNotFound)
 
     @staticmethod
     def hg_clone(path, remote_uri, user=None, ssh_key_path=None, disable_host_key_checking=False, on_filesystem_modified=None, ok_if_local_dir_exists=False):
@@ -824,7 +834,7 @@ class Repo(object):
                 raise HGError, 'Cannot clone into \'{0}\'; it is not a directory'.format(path)
         else:
             os.makedirs(path)
-        _hg_cmd(user, ssh_key_path, disable_host_key_checking, 'clone', remote_uri, path)
+        _hg_cmd(Repo._clone_handler, user, ssh_key_path, disable_host_key_checking, 'clone', remote_uri, path)
         repo = Repo(path, user, ssh_key_path=ssh_key_path, disable_host_key_checking=disable_host_key_checking, on_filesystem_modified=on_filesystem_modified)
         return repo
 
