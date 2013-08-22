@@ -80,7 +80,12 @@ def set_hg_path(p):
 
 
 
-def _ssh_cmd_config_option(username, ssh_key_path, disable_host_key_checking):
+def _hg_env():
+    env = dict(os.environ)
+    env[str('LANG')] = str('en_US.UTF-8')
+    return env
+
+def _hg_config_options(username, ssh_key_path, disable_host_key_checking):
     if username is not None  and  ssh_key_path is not None:
         cmd = __platform_ssh_cmd(username, ssh_key_path, disable_host_key_checking)
         return ['--config', 'ui.ssh={0}'.format(cmd)]
@@ -172,8 +177,8 @@ _default_return_code_handler = _ReturnCodeHandler()
 def _hg_cmd(return_code_handler, username, ssh_key_path, disable_host_key_checking, *args):
     """Run a hg command in path and return the result.
     Throws on error."""
-    cmd = [get_hg_path(), "--encoding", "UTF-8"] + _ssh_cmd_config_option(username, ssh_key_path, disable_host_key_checking) + list(args)
-    proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
+    cmd = [get_hg_path(), "--encoding", "UTF-8"] + _hg_config_options(username, ssh_key_path, disable_host_key_checking) + list(args)
+    proc = Popen(cmd, stdout=PIPE, stderr=PIPE, env=_hg_env())
 
     out, err = [x.decode("utf-8") for x in  proc.communicate()]
 
@@ -223,7 +228,7 @@ class Repo(object):
         Throws on error."""
         assert return_code_handler is None  or  isinstance(return_code_handler, _ReturnCodeHandler)
         cmd = [get_hg_path(), "--cwd", self.path, "--encoding", "UTF-8"] + list(args)
-        proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
+        proc = Popen(cmd, stdout=PIPE, stderr=PIPE, env=_hg_env())
 
         out, err = [x.decode("utf-8") for x in  proc.communicate()]
 
@@ -240,7 +245,7 @@ class Repo(object):
         """Run a hg command in path and return the result.
         Throws on error.
         Adds SSH key path"""
-        return self.hg_command(return_code_handler, *(_ssh_cmd_config_option(self.user, self.ssh_key_path, self.disable_host_key_checking) + list(args)))
+        return self.hg_command(return_code_handler, *(_hg_config_options(self.user, self.ssh_key_path, self.disable_host_key_checking) + list(args)))
 
 
 
@@ -843,7 +848,7 @@ class Repo(object):
 def hg_version():
     """Return version number of mercurial"""
     try:
-        proc = Popen([get_hg_path(), "version"], stdout=PIPE, stderr=PIPE)
+        proc = Popen([get_hg_path(), "version"], stdout=PIPE, stderr=PIPE, env=_hg_env())
     except:
         raise HGCannotLaunchError, 'Cannot launch hg executable'
     out, err = [x.decode("utf-8") for x in  proc.communicate()]
