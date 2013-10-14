@@ -80,7 +80,12 @@ def set_hg_path(p):
 
 
 
-def _ssh_cmd_config_option(username, ssh_key_path, disable_host_key_checking):
+def _hg_env():
+    env = dict(os.environ)
+    env[str('LANG')] = str('en_US.UTF-8')
+    return env
+
+def _hg_config_options(username, ssh_key_path, disable_host_key_checking):
     if username is not None  and  ssh_key_path is not None:
         cmd = __platform_ssh_cmd(username, ssh_key_path, disable_host_key_checking)
         return ['--config', 'ui.ssh={0}'.format(cmd)]
@@ -135,6 +140,12 @@ class HGCommitNoChanges (HGBaseError):
 class HGRebaseNothingToRebase (HGBaseError):
     pass
 
+class HGCloneRepoNotFound (HGBaseError):
+    pass
+
+class HGRepoUnrelated (HGBaseError):
+    pass
+
 
 
 
@@ -163,16 +174,16 @@ _default_return_code_handler = _ReturnCodeHandler()
 
 
 
-def _hg_cmd(username, ssh_key_path, disable_host_key_checking, *args):
+def _hg_cmd(return_code_handler, username, ssh_key_path, disable_host_key_checking, *args):
     """Run a hg command in path and return the result.
     Throws on error."""
-    cmd = [get_hg_path(), "--encoding", "UTF-8"] + _ssh_cmd_config_option(username, ssh_key_path, disable_host_key_checking) + list(args)
-    proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
+    cmd = [get_hg_path(), "--encoding", "UTF-8"] + _hg_config_options(username, ssh_key_path, disable_host_key_checking) + list(args)
+    proc = Popen(cmd, stdout=PIPE, stderr=PIPE, env=_hg_env())
 
     out, err = [x.decode("utf-8") for x in  proc.communicate()]
 
     if proc.returncode:
-        _default_return_code_handler._handle_return_code(cmd, err, out, proc.returncode)
+        return_code_handler._handle_return_code(cmd, err, out, proc.returncode)
     return out
 
 
@@ -217,7 +228,7 @@ class Repo(object):
         Throws on error."""
         assert return_code_handler is None  or  isinstance(return_code_handler, _ReturnCodeHandler)
         cmd = [get_hg_path(), "--cwd", self.path, "--encoding", "UTF-8"] + list(args)
-        proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
+        proc = Popen(cmd, stdout=PIPE, stderr=PIPE, env=_hg_env())
 
         if stdout_listener is None:
             out, err = [x.decode("utf-8") for x in  proc.communicate()]
@@ -248,7 +259,7 @@ class Repo(object):
         """Run a hg command in path and return the result.
         Throws on error.
         Adds SSH key path"""
-        return self.__hg_command(return_code_handler, _ssh_cmd_config_option(self.user, self.ssh_key_path, self.disable_host_key_checking) + list(args))
+        return self.hg_command(return_code_handler, *(_hg_config_options(self.user, self.ssh_key_path, self.disable_host_key_checking) + list(args)))
 
     def hg_remote_command_with_progress(self, return_code_handler, stdout_listener, *args):
         """Run a hg command in path and return the result.
@@ -660,15 +671,16 @@ class Repo(object):
 
 
 
+    _pull_handler = _ReturnCodeHandler().map_returncode_to_exception(1, HGUnresolvedFiles).map_returncode_to_exception(255, HGRepoUnrelated)
 
     def hg_pull(self, progress_listener=None):
         cmd = ['pull']
         if progress_listener:
             cmd.append('-v')
-        return self.hg_remote_command_with_progress(self._unresolved_handler, progress_listener, *cmd)
+        return self.hg_remote_command_with_progress(self._pull_handler, progress_listener, *cmd)
 
 
-    _push_handler = _ReturnCodeHandler().map_returncode_to_exception(1, HGPushNothingToPushError)
+    _push_handler = _ReturnCodeHandler().map_returncode_to_exception(1, HGPushNothingToPushError).map_returncode_to_exception(255, HGRepoUnrelated)
 
     def hg_push(self, force=False, progress_listener=None):
         cmd = ['push']
@@ -832,9 +844,12 @@ class Repo(object):
         """Initialize a new repo"""
         # Call hg_version() to check that it is installed and that it works
         hg_version()
-        _hg_cmd(user, None, disable_host_key_checking, 'init', path)
+        _hg_cmd(_default_return_code_handler, user, None, disable_host_key_checking, 'init', path)
         repo = Repo(path, user, ssh_key_path=ssh_key_path, disable_host_key_checking=disable_host_key_checking, on_filesystem_modified=on_filesystem_modified)
         return repo
+
+
+    _clone_handler = _ReturnCodeHandler().map_returncode_to_exception(255, HGCloneRepoNotFound)
 
     @staticmethod
     def hg_clone(path, remote_uri, user=None, ssh_key_path=None, disable_host_key_checking=False, on_filesystem_modified=None, ok_if_local_dir_exists=False):
@@ -849,7 +864,7 @@ class Repo(object):
                 raise HGError, 'Cannot clone into \'{0}\'; it is not a directory'.format(path)
         else:
             os.makedirs(path)
-        _hg_cmd(user, ssh_key_path, disable_host_key_checking, 'clone', remote_uri, path)
+        _hg_cmd(Repo._clone_handler, user, ssh_key_path, disable_host_key_checking, 'clone', remote_uri, path)
         repo = Repo(path, user, ssh_key_path=ssh_key_path, disable_host_key_checking=disable_host_key_checking, on_filesystem_modified=on_filesystem_modified)
         return repo
 
@@ -858,7 +873,7 @@ class Repo(object):
 def hg_version():
     """Return version number of mercurial"""
     try:
-        proc = Popen([get_hg_path(), "version"], stdout=PIPE, stderr=PIPE)
+        proc = Popen([get_hg_path(), "version"], stdout=PIPE, stderr=PIPE, env=_hg_env())
     except:
         raise HGCannotLaunchError, 'Cannot launch hg executable'
     out, err = [x.decode("utf-8") for x in  proc.communicate()]
