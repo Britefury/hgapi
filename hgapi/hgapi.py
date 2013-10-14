@@ -265,7 +265,7 @@ class Repo(object):
         """Run a hg command in path and return the result.
         Throws on error.
         Adds SSH key path"""
-        return self.__hg_command(return_code_handler, _ssh_cmd_config_option(self.user, self.ssh_key_path, self.disable_host_key_checking) + list(args), stdout_listener)
+        return self.__hg_command(return_code_handler, _hg_config_options(self.user, self.ssh_key_path, self.disable_host_key_checking) + list(args), stdout_listener)
 
 
 

@@ -43,6 +43,12 @@ class TestHgAPI(unittest.TestCase):
     def _test_file(self, filename):
         return os.path.join(self._test_dir_path, filename)
 
+    def _clone1_file(self, filename):
+        return os.path.join(self._clone1_path, filename)
+
+    def _clone2_file(self, filename):
+        return os.path.join(self._clone2_path, filename)
+
 
 
     def test_000_Init(self):
@@ -408,13 +414,12 @@ class TestHgAPI(unittest.TestCase):
         self.assertEquals(len(branch_names), 2)
 
     def test_240_clone(self):
-        dirName = self._clone1_path
-        if os.path.exists(dirName): shutil.rmtree(dirName)
-        repo = hgapi.Repo.hg_clone(dirName, self._test_dir_path, user='testuser')
-        self.assertTrue(os.path.exists(dirName))
-        self.assertTrue(os.path.exists(os.path.join(dirName, 'file3.txt')))
-        shutil.rmtree(dirName)
-        self.assertFalse(os.path.exists(dirName))
+        if os.path.exists(self._clone1_path): shutil.rmtree(self._clone1_path)
+        repo = hgapi.Repo.hg_clone(self._clone1_path, self._test_dir_path, user='testuser')
+        self.assertTrue(os.path.exists(self._clone1_path))
+        self.assertTrue(os.path.exists(self._clone1_file('file3.txt')))
+        shutil.rmtree(self._clone1_path)
+        self.assertFalse(os.path.exists(self._clone1_path))
 
     def test_241_clone_dir_exists_raises(self):
         dirName = self._clone2_path
@@ -657,7 +662,57 @@ class TestHgAPI(unittest.TestCase):
         os.remove(out_filename)
 
 
-    def test_330_pull_from_unrelated(self):
+    def test_330_pull(self):
+        if os.path.exists(self._clone1_path): shutil.rmtree(self._clone1_path)
+        clone_repo = hgapi.Repo.hg_clone(self._clone1_path, self._test_dir_path, user='testuser')
+        self.assertTrue(os.path.exists(self._clone1_path))
+
+        self.assertFalse(os.path.exists(self._clone1_file('file6.txt')))
+
+        with open(self._test_file('file6.txt'), "w") as out:
+            out.write("created in the main repo")
+        self.repo.hg_add('file6.txt')
+        self.repo.hg_commit('Added file6.txt')
+
+        self.assertTrue(os.path.exists(self._test_file('file6.txt')))
+        self.assertFalse(os.path.exists(self._clone1_file('file6.txt')))
+
+        clone_repo.hg_pull()
+        clone_repo.hg_update('default')
+
+        self.assertTrue(os.path.exists(self._test_file('file6.txt')))
+        self.assertTrue(os.path.exists(self._clone1_file('file6.txt')))
+
+        shutil.rmtree(self._clone1_path)
+        self.assertFalse(os.path.exists(self._clone1_path))
+
+
+    def test_340_push(self):
+        if os.path.exists(self._clone1_path): shutil.rmtree(self._clone1_path)
+        clone_repo = hgapi.Repo.hg_clone(self._clone1_path, self._test_dir_path, user='testuser')
+        self.assertTrue(os.path.exists(self._clone1_path))
+
+        self.assertFalse(os.path.exists(self._clone1_file('file7.txt')))
+
+        with open(self._clone1_file('file7.txt'), "w") as out:
+            out.write("created in the clone repo")
+        clone_repo.hg_add('file7.txt')
+        clone_repo.hg_commit('Added file7.txt')
+
+        self.assertFalse(os.path.exists(self._test_file('file7.txt')))
+        self.assertTrue(os.path.exists(self._clone1_file('file7.txt')))
+
+        clone_repo.hg_push()
+        self.repo.hg_update('default')
+
+        self.assertTrue(os.path.exists(self._test_file('file7.txt')))
+        self.assertTrue(os.path.exists(self._clone1_file('file7.txt')))
+
+        shutil.rmtree(self._clone1_path)
+        self.assertFalse(os.path.exists(self._clone1_path))
+
+
+    def test_350_pull_from_unrelated(self):
         original_repo_path = tempfile.mkdtemp(prefix='testhgapi_original')
         main_clone_path = tempfile.mkdtemp(prefix='testhgapi_main_clone')
 
@@ -719,60 +774,6 @@ class TestHgAPI(unittest.TestCase):
             shutil.rmtree(original_repo_path)
             shutil.rmtree(main_clone_path)
 
-
-
-    def test_330_pull(self):
-        dirName = './testclone'
-        if os.path.exists(dirName): shutil.rmtree(dirName)
-        clone_repo = hgapi.Repo.hg_clone(dirName, './test', user='testuser')
-        self.assertTrue(os.path.exists(dirName))
-
-        self.assertFalse(os.path.exists(os.path.join(dirName, 'file6.txt')))
-
-        with open("test/file6.txt", "w") as out:
-            out.write("created in the main repo")
-        self.repo.hg_add('file6.txt')
-        self.repo.hg_commit('Added file6.txt')
-
-        self.assertTrue(os.path.exists(os.path.join('./test', 'file6.txt')))
-        self.assertFalse(os.path.exists(os.path.join(dirName, 'file6.txt')))
-
-        def on_progress(x):
-            print x
-        clone_repo.hg_pull(on_progress)
-        clone_repo.hg_update('default')
-
-        self.assertTrue(os.path.exists(os.path.join('./test', 'file6.txt')))
-        self.assertTrue(os.path.exists(os.path.join(dirName, 'file6.txt')))
-
-        shutil.rmtree(dirName)
-        self.assertFalse(os.path.exists(dirName))
-
-
-    def test_340_push(self):
-        dirName = './testclone'
-        if os.path.exists(dirName): shutil.rmtree(dirName)
-        clone_repo = hgapi.Repo.hg_clone(dirName, './test', user='testuser')
-        self.assertTrue(os.path.exists(dirName))
-
-        self.assertFalse(os.path.exists(os.path.join(dirName, 'file7.txt')))
-
-        with open(os.path.join(dirName, 'file7.txt'), "w") as out:
-            out.write("created in the clone repo")
-        clone_repo.hg_add('file7.txt')
-        clone_repo.hg_commit('Added file7.txt')
-
-        self.assertFalse(os.path.exists(os.path.join('./test', 'file7.txt')))
-        self.assertTrue(os.path.exists(os.path.join(dirName, 'file7.txt')))
-
-        clone_repo.hg_push()
-        self.repo.hg_update('default')
-
-        self.assertTrue(os.path.exists(os.path.join('./test', 'file7.txt')))
-        self.assertTrue(os.path.exists(os.path.join(dirName, 'file7.txt')))
-
-        shutil.rmtree(dirName)
-        self.assertFalse(os.path.exists(dirName))
 
 
 
