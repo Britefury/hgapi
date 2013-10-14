@@ -677,8 +677,25 @@ class TestHgAPI(unittest.TestCase):
         self.assertTrue(os.path.exists(self._test_file('file6.txt')))
         self.assertFalse(os.path.exists(self._clone1_file('file6.txt')))
 
-        clone_repo.hg_pull()
+        tasks = []
+        def progress_listener(task):
+            tasks.append(task)
+
+        clone_repo.hg_pull(progress_listener=progress_listener)
         clone_repo.hg_update('default')
+        self.maxDiff = None
+
+        self.assertEqual([
+            u'pulling from {0}'.format(self._test_dir_path),
+            u'searching for changes',
+            u'all local heads known remotely',
+            #u'all heads known remotely',
+            u'1 changesets found',
+            u'adding changesets',
+            u'adding manifests',
+            u'adding file changes',
+            u'added 1 changesets with 1 changes to 1 files'
+        ], tasks)
 
         self.assertTrue(os.path.exists(self._test_file('file6.txt')))
         self.assertTrue(os.path.exists(self._clone1_file('file6.txt')))
@@ -702,8 +719,22 @@ class TestHgAPI(unittest.TestCase):
         self.assertFalse(os.path.exists(self._test_file('file7.txt')))
         self.assertTrue(os.path.exists(self._clone1_file('file7.txt')))
 
-        clone_repo.hg_push()
+        tasks = []
+        def progress_listener(task):
+            tasks.append(task)
+
+        clone_repo.hg_push(progress_listener=progress_listener)
         self.repo.hg_update('default')
+
+        self.assertEqual([
+            u'pushing to {0}'.format(self._test_dir_path),
+            u'searching for changes',
+            u'1 changesets found',
+            u'adding changesets',
+            u'adding manifests',
+            u'adding file changes',
+            u'added 1 changesets with 1 changes to 1 files'
+        ], tasks)
 
         self.assertTrue(os.path.exists(self._test_file('file7.txt')))
         self.assertTrue(os.path.exists(self._clone1_file('file7.txt')))

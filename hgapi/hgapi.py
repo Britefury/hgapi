@@ -261,7 +261,7 @@ class Repo(object):
         Adds SSH key path"""
         return self.hg_command(return_code_handler, *(_hg_config_options(self.user, self.ssh_key_path, self.disable_host_key_checking) + list(args)))
 
-    def hg_remote_command_with_progress(self, return_code_handler, stdout_listener, *args):
+    def hg_remote_command_with_stdout_listener(self, return_code_handler, stdout_listener, *args):
         """Run a hg command in path and return the result.
         Throws on error.
         Adds SSH key path"""
@@ -674,21 +674,29 @@ class Repo(object):
     _pull_handler = _ReturnCodeHandler().map_returncode_to_exception(1, HGUnresolvedFiles).map_returncode_to_exception(255, HGRepoUnrelated)
 
     def hg_pull(self, progress_listener=None):
+        def _stdout_listener(line):
+            line = line.strip()
+            if line != ''  and  line != '(run \'hg update\' to get a working copy)':
+                progress_listener(line)
         cmd = ['pull']
         if progress_listener:
             cmd.append('-v')
-        return self.hg_remote_command_with_progress(self._pull_handler, progress_listener, *cmd)
+        return self.hg_remote_command_with_stdout_listener(self._pull_handler, _stdout_listener   if progress_listener is not None   else None, *cmd)
 
 
     _push_handler = _ReturnCodeHandler().map_returncode_to_exception(1, HGPushNothingToPushError).map_returncode_to_exception(255, HGRepoUnrelated)
 
     def hg_push(self, force=False, progress_listener=None):
+        def _stdout_listener(line):
+            line = line.strip()
+            if line != '':
+                progress_listener(line)
         cmd = ['push']
         if force:
             cmd.append('--force')
         if progress_listener:
             cmd.append('-v')
-        return self.hg_remote_command_with_progress(self._push_handler, progress_listener, *cmd)
+        return self.hg_remote_command_with_stdout_listener(self._push_handler, _stdout_listener   if progress_listener is not None   else None, *cmd)
 
 
 
