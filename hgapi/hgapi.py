@@ -228,11 +228,12 @@ class Repo(object):
         Throws on error."""
         assert return_code_handler is None  or  isinstance(return_code_handler, _ReturnCodeHandler)
         cmd = [get_hg_path(), "--cwd", self.path, "--encoding", "UTF-8"] + list(args)
-        proc = Popen(cmd, stdout=PIPE, stderr=PIPE, env=_hg_env())
 
         if stdout_listener is None:
+            proc = Popen(cmd, stdout=PIPE, stderr=PIPE, env=_hg_env())
             out, err = [x.decode("utf-8") for x in  proc.communicate()]
         else:
+            proc = Popen(cmd, stdout=PIPE, stderr=PIPE, env=_hg_env(), bufsize=-1)
             out_lines = []
             while proc.poll() is None:
                 x = proc.stdout.readline().decode('utf-8')
@@ -783,6 +784,16 @@ class Repo(object):
 
 
 
+    def enable_progress(self, delay=None):
+        self.enable_extension('progress')
+        config = self.read_repo_config()
+        if not config.has_section('progress'):
+            config.add_section('progress')
+        config.set('progress', 'delay', str(delay))
+        self.write_repo_config(config)
+
+
+
 
     def read_config(self):
         """Read the configuration as seen with 'hg showconfig'
@@ -860,7 +871,7 @@ class Repo(object):
     _clone_handler = _ReturnCodeHandler().map_returncode_to_exception(255, HGCloneRepoNotFound)
 
     @staticmethod
-    def hg_clone(path, remote_uri, user=None, ssh_key_path=None, disable_host_key_checking=False, on_filesystem_modified=None, ok_if_local_dir_exists=False):
+    def hg_clone(path, remote_uri, user=None, revision=None, ssh_key_path=None, disable_host_key_checking=False, on_filesystem_modified=None, ok_if_local_dir_exists=False):
         """Clone an existing repo"""
         # Call hg_version() to check that it is installed and that it works
         hg_version()
@@ -872,7 +883,11 @@ class Repo(object):
                 raise HGError, 'Cannot clone into \'{0}\'; it is not a directory'.format(path)
         else:
             os.makedirs(path)
-        _hg_cmd(Repo._clone_handler, user, ssh_key_path, disable_host_key_checking, 'clone', remote_uri, path)
+        cmd = ['clone']
+        if revision is not None:
+            cmd.extend(['-r', revision])
+        cmd.extend([remote_uri, path])
+        _hg_cmd(Repo._clone_handler, user, ssh_key_path, disable_host_key_checking, *cmd)
         repo = Repo(path, user, ssh_key_path=ssh_key_path, disable_host_key_checking=disable_host_key_checking, on_filesystem_modified=on_filesystem_modified)
         return repo
 
