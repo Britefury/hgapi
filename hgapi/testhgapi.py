@@ -648,6 +648,60 @@ class TestHgAPI(unittest.TestCase):
         os.remove(out_filename)
 
 
+    def test_330_pull(self):
+        dirName = './testclone'
+        if os.path.exists(dirName): shutil.rmtree(dirName)
+        clone_repo = hgapi.Repo.hg_clone(dirName, './test', user='testuser')
+        self.assertTrue(os.path.exists(dirName))
+
+        self.assertFalse(os.path.exists(os.path.join(dirName, 'file6.txt')))
+
+        with open("test/file6.txt", "w") as out:
+            out.write("created in the main repo")
+        self.repo.hg_add('file6.txt')
+        self.repo.hg_commit('Added file6.txt')
+
+        self.assertTrue(os.path.exists(os.path.join('./test', 'file6.txt')))
+        self.assertFalse(os.path.exists(os.path.join(dirName, 'file6.txt')))
+
+        def on_progress(x):
+            print x
+        clone_repo.hg_pull(on_progress)
+        clone_repo.hg_update('default')
+
+        self.assertTrue(os.path.exists(os.path.join('./test', 'file6.txt')))
+        self.assertTrue(os.path.exists(os.path.join(dirName, 'file6.txt')))
+
+        shutil.rmtree(dirName)
+        self.assertFalse(os.path.exists(dirName))
+
+
+    def test_340_push(self):
+        dirName = './testclone'
+        if os.path.exists(dirName): shutil.rmtree(dirName)
+        clone_repo = hgapi.Repo.hg_clone(dirName, './test', user='testuser')
+        self.assertTrue(os.path.exists(dirName))
+
+        self.assertFalse(os.path.exists(os.path.join(dirName, 'file7.txt')))
+
+        with open(os.path.join(dirName, 'file7.txt'), "w") as out:
+            out.write("created in the clone repo")
+        clone_repo.hg_add('file7.txt')
+        clone_repo.hg_commit('Added file7.txt')
+
+        self.assertFalse(os.path.exists(os.path.join('./test', 'file7.txt')))
+        self.assertTrue(os.path.exists(os.path.join(dirName, 'file7.txt')))
+
+        clone_repo.hg_push()
+        self.repo.hg_update('default')
+
+        self.assertTrue(os.path.exists(os.path.join('./test', 'file7.txt')))
+        self.assertTrue(os.path.exists(os.path.join(dirName, 'file7.txt')))
+
+        shutil.rmtree(dirName)
+        self.assertFalse(os.path.exists(dirName))
+
+
 
 
 

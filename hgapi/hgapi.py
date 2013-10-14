@@ -212,14 +212,23 @@ class Repo(object):
             return self.revisions(":".join([str(x)for x in (rev.start, rev.stop)]))
         return self.revision(rev)
 
-    def hg_command(self, return_code_handler, *args):
+    def __hg_command(self, return_code_handler, args, stdout_listener=None):
         """Run a hg command in path and return the result.
         Throws on error."""
         assert return_code_handler is None  or  isinstance(return_code_handler, _ReturnCodeHandler)
         cmd = [get_hg_path(), "--cwd", self.path, "--encoding", "UTF-8"] + list(args)
         proc = Popen(cmd, stdout=PIPE, stderr=PIPE)
 
-        out, err = [x.decode("utf-8") for x in  proc.communicate()]
+        if stdout_listener is None:
+            out, err = [x.decode("utf-8") for x in  proc.communicate()]
+        else:
+            out_lines = []
+            while proc.poll() is None:
+                x = proc.stdout.readline().decode('utf-8')
+                out_lines.append(x)
+                stdout_listener(x)
+            out = ''.join(out_lines)
+            err = proc.stderr.read().decode('utf-8')
 
         if proc.returncode:
             if return_code_handler is not None:
@@ -230,11 +239,22 @@ class Repo(object):
                     % (' '.join(cmd),err,out,proc.returncode))
         return out
 
+    def hg_command(self, return_code_handler, *args):
+        """Run a hg command in path and return the result.
+        Throws on error."""
+        return self.__hg_command(return_code_handler, args)
+
     def hg_remote_command(self, return_code_handler, *args):
         """Run a hg command in path and return the result.
         Throws on error.
         Adds SSH key path"""
-        return self.hg_command(return_code_handler, *(_ssh_cmd_config_option(self.user, self.ssh_key_path, self.disable_host_key_checking) + list(args)))
+        return self.__hg_command(return_code_handler, _ssh_cmd_config_option(self.user, self.ssh_key_path, self.disable_host_key_checking) + list(args))
+
+    def hg_remote_command_with_progress(self, return_code_handler, stdout_listener, *args):
+        """Run a hg command in path and return the result.
+        Throws on error.
+        Adds SSH key path"""
+        return self.__hg_command(return_code_handler, _ssh_cmd_config_option(self.user, self.ssh_key_path, self.disable_host_key_checking) + list(args), stdout_listener)
 
 
 
@@ -641,17 +661,22 @@ class Repo(object):
 
 
 
-    def hg_pull(self):
-        return self.hg_remote_command(self._unresolved_handler, 'pull')
+    def hg_pull(self, progress_listener=None):
+        cmd = ['pull']
+        if progress_listener:
+            cmd.append('-v')
+        return self.hg_remote_command_with_progress(self._unresolved_handler, progress_listener, *cmd)
 
 
     _push_handler = _ReturnCodeHandler().map_returncode_to_exception(1, HGPushNothingToPushError)
 
-    def hg_push(self, force=False):
+    def hg_push(self, force=False, progress_listener=None):
         cmd = ['push']
         if force:
             cmd.append('--force')
-        return self.hg_remote_command(self._push_handler, *cmd)
+        if progress_listener:
+            cmd.append('-v')
+        return self.hg_remote_command_with_progress(self._push_handler, progress_listener, *cmd)
 
 
 
